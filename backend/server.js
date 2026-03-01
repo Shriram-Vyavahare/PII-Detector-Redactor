@@ -1,7 +1,11 @@
 const express=require("express");
 const app=express();
 
+const uploadRoutes = require("./routes/uploadRoutes");
+
 const port=3000;
+
+app.use("/api",uploadRoutes);
 
 app.listen(port,()=>{
     console.log(`app is listening on port ${port}`);
