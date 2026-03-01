@@ -1,3 +1,5 @@
+const detectPII = require("../utils/piiDetector");
+
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
@@ -64,12 +66,24 @@ router.post("/upload", upload.single("document"), async (req, res) => {
     console.log(extractedText);
     console.log("===== EXTRACTED TEXT END =====");
 
+
+    // 5️⃣ Detect PII from extracted text
+    const detectedPII = detectPII(extractedText);
+
+    // 🔥 Print detected PII in console
+    console.log("===== DETECTED PII START =====");
+    console.log(detectedPII);
+    console.log("===== DETECTED PII END =====");
+
+
     // 5️⃣ Send success response
     res.json({
-      message: "File uploaded and text extracted successfully",
-      fileType: fileExtension,
-      textLength: extractedText.length
+    message: "File uploaded, text extracted and PII detected",
+    fileType: fileExtension,
+    textLength: extractedText.length,
+    detectedPII
     });
+
 
   } catch (error) {
     console.error(error);
