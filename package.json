@@ -1,0 +1,23 @@
+{
+  "name": "pii_detector_redactor",
+  "version": "1.0.0",
+  "description": "This project detects and masks Personally Identifiable Information (PII)\r such as Aadhaar, PAN, phone number, etc., from uploaded documents.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Shriram-Vyavahare/PII-Detector-Redactor.git"
+  },
+  "keywords": [],
+  "author": "shriram vyavahare",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Shriram-Vyavahare/PII-Detector-Redactor/issues"
+  },
+  "homepage": "https://github.com/Shriram-Vyavahare/PII-Detector-Redactor#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
