@@ -9,60 +9,56 @@ function detectPII(text) {
   let workingText = text;
 
   // -------- Context keywords for each PII type --------
-const contextKeywords = {
+  const contextKeywords = {
 
-  paymentCardNumber: [
-    "credit card", "creditcard", "card number", "card no", "card details", "card info", "cc number", "cc no",
-    "credit","debit", "debit card", "debitcard", "visa", "mastercard", "rupay", "amex", "american express",
-    "payment card", "bank card","atm", "atm card", "expiry", "cvv"
-  ],
+    paymentCardNumber: [
+      "credit card", "creditcard", "card number", "card no", "card details", "card info", "cc number", "cc no",
+      "credit", "debit", "debit card", "debitcard", "visa", "mastercard", "rupay", "amex", "american express",
+      "payment card", "bank card", "atm", "atm card", "expiry", "cvv"
+    ],
 
-  aadhaar: [
-    "aadhaar", "aadhar", "adhar", "aadhaar number", "aadhar number", "aadhaar no", "aadhar no",
-    "uid", "uidai", "uid number", "aadhaar id", "aadhaar card", "aadhar card", "aadhaar details"
-  ],
+    aadhaar: [
+      "aadhaar", "aadhar", "adhar", "aadhaar number", "aadhar number", "aadhaar no", "aadhar no",
+      "uid", "uidai", "uid number", "aadhaar id", "aadhaar card", "aadhar card", "aadhaar details"
+    ],
 
-  pan: [
-    "pan", "pan number", "pan no", "pan card", "permanent account number", "permanent account no",
-    "income tax", "tax id", "tax identification", "tax number", "pan details"
-  ],
+    pan: [
+      "pan", "pan number", "pan no", "pan card", "permanent account number", "permanent account no",
+      "income tax", "tax id", "tax identification", "tax number", "pan details"
+    ],
 
-  phone: [
-    "phone", "phone number", "phone no", "mobile", "mobile number", "mobile no", "contact",
-    "contact number", "contact no", "call", "call me", "reach me", "reach at",
-    "tel", "telephone", "telephone number", "cell", "cellphone", "whatsapp", "whatsapp number"
-  ],
+    phone: [
+      "phone", "phone number", "phone no", "mobile", "mobile number", "mobile no", "contact",
+      "contact number", "contact no", "call", "call me", "reach me", "reach at",
+      "tel", "telephone", "telephone number", "cell", "cellphone", "whatsapp", "whatsapp number"
+    ],
 
-  email: [
-    "email", "email id", "email address", "mail", "mail id", "e-mail",
-    "e-mail id", "contact email", "official email", "personal email"
-  ],
+    email: [
+      "email", "email id", "email address", "mail", "mail id", "e-mail",
+      "e-mail id", "contact email", "official email", "personal email"
+    ],
 
-  ifsc: [
-    "ifsc", "ifsc code", "bank ifsc", "branch code", "bank branch code",
-    "ifsc number", "branch ifsc", "rtgs", "neft", "imps"
-  ],
+    ifsc: [
+      "ifsc", "ifsc code", "bank ifsc", "branch code", "bank branch code",
+      "ifsc number", "branch ifsc", "rtgs", "neft", "imps"
+    ],
 
-  bankAccount: [
-    "account", "account number", "account no", "account details", "bank account",
-    "bank account number", "bank a/c", "a/c", "a/c no", "acc", "acc no",
-    "savings account", "current account", "personal account", "account holder",
-    "bank details", "account information", "account id"
-  ]
+    bankAccount: [
+      "account", "account number", "account no", "account details", "bank account",
+      "bank account number", "bank a/c", "a/c", "a/c no", "acc", "acc no",
+      "savings account", "current account", "personal account", "account holder",
+      "bank details", "account information", "account id"
+    ]
 
-};
+  };
 
   /**
    * Get nearby context window around detected value
    */
-  function getContextWindow(fullText, value, windowSize = 80) {
-
-    const index = fullText.indexOf(value);
-
-    if (index === -1) return "";
+  function getContextWindow(fullText, index, valueLength, windowSize = 80) {
 
     const start = Math.max(0, index - windowSize);
-    const end = Math.min(fullText.length, index + value.length + windowSize);
+    const end = Math.min(fullText.length, index + valueLength + windowSize);
 
     return fullText.substring(start, end).toLowerCase();
   }
@@ -70,100 +66,167 @@ const contextKeywords = {
   /**
    * Calculate confidence score based on nearby context
    */
-function getConfidence(type, value) {
+  function getConfidence(type, contextWindow) {
 
-  // Email pattern itself is very strong
-  if (type === "email") {
-    return "HIGH";
+    if (type === "email") {
+      return "HIGH";
+    }
+
+    const keywords = contextKeywords[type] || [];
+
+    const hasContext = keywords.some(keyword =>
+      contextWindow.includes(keyword)
+    );
+
+    return hasContext ? "HIGH" : "LOW";
   }
 
-  const keywords = contextKeywords[type] || [];
+  // ---------- 1️⃣ Detect Payment Card Numbers FIRST ----------
+  const cardMatches = [...workingText.matchAll(piiPatterns.paymentCardNumber)];
 
-  const contextWindow = getContextWindow(text, value);
+  if (cardMatches.length) {
 
-  const hasContext = keywords.some(keyword =>
-    contextWindow.includes(keyword)
-  );
+    detectedPII.paymentCardNumber = cardMatches.map(match => {
 
-  return hasContext ? "HIGH" : "LOW";
-}
+      const value = match[0];
+      const index = match.index;
 
-  // ---------- 1️⃣ Detect Credit Cards FIRST ----------
-  const paymentCardNumbers = workingText.match(piiPatterns.paymentCardNumber);
-  if (paymentCardNumbers) {
+      const contextWindow = getContextWindow(text, index, value.length);
 
-    detectedPII.paymentCardNumber = paymentCardNumbers.map(card => ({
-      value: card,
-      confidence: getConfidence("paymentCardNumber", card)
-    }));
+      return {
+        value: value,
+        confidence: getConfidence("paymentCardNumber", contextWindow)
+      };
 
-    paymentCardNumbers.forEach(card => {
-      workingText = workingText.replace(card, " ");
+    });
+
+    cardMatches.forEach(match => {
+      workingText = workingText.replace(match[0], " ");
     });
   }
 
   // ---------- 2️⃣ Detect Aadhaar ----------
-  const aadhaar = workingText.match(piiPatterns.aadhaar);
-  if (aadhaar) {
- 
-    detectedPII.aadhaar = aadhaar.map(a => ({
-      value: a,
-      confidence: getConfidence("aadhaar", a)
-    }));
+  const aadhaarMatches = [...workingText.matchAll(piiPatterns.aadhaar)];
 
-    aadhaar.forEach(a => {
-      workingText = workingText.replace(a, " ");
+  if (aadhaarMatches.length) {
+
+    detectedPII.aadhaar = aadhaarMatches.map(match => {
+
+      const value = match[0];
+      const index = match.index;
+
+      const contextWindow = getContextWindow(text, index, value.length);
+
+      return {
+        value: value,
+        confidence: getConfidence("aadhaar", contextWindow)
+      };
+
+    });
+
+    aadhaarMatches.forEach(match => {
+      workingText = workingText.replace(match[0], " ");
     });
   }
 
   // ---------- 3️⃣ PAN ----------
-  const pan = workingText.match(piiPatterns.pan);
-  if (pan) {
+  const panMatches = [...workingText.matchAll(piiPatterns.pan)];
 
-    detectedPII.pan = pan.map(p => ({
-      value: p,
-      confidence: getConfidence("pan", p)
-    }));
+  if (panMatches.length) {
+
+    detectedPII.pan = panMatches.map(match => {
+
+      const value = match[0];
+      const index = match.index;
+
+      const contextWindow = getContextWindow(text, index, value.length);
+
+      return {
+        value: value,
+        confidence: getConfidence("pan", contextWindow)
+      };
+
+    });
   }
 
   // ---------- 4️⃣ Phone ----------
-  const phone = workingText.match(piiPatterns.phone);
-  if (phone) {
+  const phoneMatches = [...workingText.matchAll(piiPatterns.phone)];
 
-    detectedPII.phone = phone.map(p => ({
-      value: p,
-      confidence: getConfidence("phone", p)
-    }));
+  if (phoneMatches.length) {
+
+    detectedPII.phone = phoneMatches.map(match => {
+
+      const value = match[0];
+      const index = match.index;
+
+      const contextWindow = getContextWindow(text, index, value.length);
+
+      return {
+        value: value,
+        confidence: getConfidence("phone", contextWindow)
+      };
+
+    });
   }
 
   // ---------- 5️⃣ Email ----------
-  const email = workingText.match(piiPatterns.email);
-  if (email) {
+  const emailMatches = [...workingText.matchAll(piiPatterns.email)];
 
-    detectedPII.email = email.map(e => ({
-      value: e,
-      confidence: getConfidence("email", e)
-    }));
+  if (emailMatches.length) {
+
+    detectedPII.email = emailMatches.map(match => {
+
+      const value = match[0];
+      const index = match.index;
+
+      const contextWindow = getContextWindow(text, index, value.length);
+
+      return {
+        value: value,
+        confidence: getConfidence("email", contextWindow)
+      };
+
+    });
   }
 
   // ---------- 6️⃣ IFSC ----------
-  const ifsc = workingText.match(piiPatterns.ifsc);
-  if (ifsc) {
+  const ifscMatches = [...workingText.matchAll(piiPatterns.ifsc)];
 
-    detectedPII.ifsc = ifsc.map(i => ({
-      value: i,
-      confidence: getConfidence("ifsc", i)
-    }));
+  if (ifscMatches.length) {
+
+    detectedPII.ifsc = ifscMatches.map(match => {
+
+      const value = match[0];
+      const index = match.index;
+
+      const contextWindow = getContextWindow(text, index, value.length);
+
+      return {
+        value: value,
+        confidence: getConfidence("ifsc", contextWindow)
+      };
+
+    });
   }
 
   // ---------- 7️⃣ Bank Account ----------
-  const bank = workingText.match(piiPatterns.bankAccount);
-  if (bank) {
+  const bankMatches = [...workingText.matchAll(piiPatterns.bankAccount)];
 
-    detectedPII.bankAccount = bank.map(b => ({
-      value: b,
-      confidence: getConfidence("bankAccount", b)
-    }));
+  if (bankMatches.length) {
+
+    detectedPII.bankAccount = bankMatches.map(match => {
+
+      const value = match[0];
+      const index = match.index;
+
+      const contextWindow = getContextWindow(text, index, value.length);
+
+      return {
+        value: value,
+        confidence: getConfidence("bankAccount", contextWindow)
+      };
+
+    });
   }
 
   return detectedPII;
