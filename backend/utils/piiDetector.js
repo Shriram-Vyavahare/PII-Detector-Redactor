@@ -1,6 +1,31 @@
 const piiPatterns = require("./piiPatterns");
 
 /**
+ * Luhn Algorithm to validate payment card numbers
+ */
+function isValidCardNumber(cardNumber) {
+
+  const digits = cardNumber.replace(/\D/g, "").split("").reverse().map(Number);
+
+  let sum = 0;
+
+  for (let i = 0; i < digits.length; i++) {
+
+    let digit = digits[i];
+
+    if (i % 2 === 1) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+
+    sum += digit;
+  }
+
+  return sum % 10 === 0;
+}
+
+
+/**
  * Detect PII from extracted text
  */
 function detectPII(text) {
@@ -14,7 +39,7 @@ function detectPII(text) {
     paymentCardNumber: [
       "credit card", "creditcard", "card number", "card no", "card details", "card info", "cc number", "cc no",
       "credit", "debit", "debit card", "debitcard", "visa", "mastercard", "rupay", "amex", "american express",
-      "payment card", "bank card", "atm", "atm card", "expiry", "cvv"
+      "payment card", "bank card", "atm", "atm card", "expiry", "cvv","credit card number","debit card number","atm card number"
     ],
 
     aadhaar: [
@@ -74,8 +99,13 @@ function detectPII(text) {
 
     const keywords = contextKeywords[type] || [];
 
+    const normalizedWindow = contextWindow
+      .replace(/[^\w\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+
     const hasContext = keywords.some(keyword =>
-      contextWindow.includes(keyword)
+      normalizedWindow.includes(keyword.toLowerCase())
     );
 
     return hasContext ? "HIGH" : "LOW";
@@ -86,19 +116,27 @@ function detectPII(text) {
 
   if (cardMatches.length) {
 
-    detectedPII.paymentCardNumber = cardMatches.map(match => {
+    const validCards = [];
+
+    cardMatches.forEach(match => {
 
       const value = match[0];
       const index = match.index;
 
+      if (!isValidCardNumber(value)) return;
+
       const contextWindow = getContextWindow(text, index, value.length);
 
-      return {
+      validCards.push({
         value: value,
         confidence: getConfidence("paymentCardNumber", contextWindow)
-      };
+      });
 
     });
+
+    if (validCards.length) {
+      detectedPII.paymentCardNumber = validCards;
+    }
 
     cardMatches.forEach(match => {
       workingText = workingText.replace(match[0], " ");
