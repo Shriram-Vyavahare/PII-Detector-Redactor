@@ -1,8 +1,7 @@
 const piiPatterns = require("./piiPatterns");
 
-/**
- * Luhn Algorithm to validate payment card numbers
- */
+/* ---------------- Luhn Validation ---------------- */
+
 function isValidCardNumber(cardNumber) {
 
   const digits = cardNumber.replace(/\D/g, "").split("").reverse().map(Number);
@@ -25,54 +24,43 @@ function isValidCardNumber(cardNumber) {
 }
 
 
-/**
- * Detect PII from extracted text
- */
+/* ---------------- PII Detector ---------------- */
+
 function detectPII(text) {
 
   const detectedPII = {};
+  const usedRanges = [];
 
   const contextKeywords = {
 
     paymentCardNumber: [
-      "credit card","creditcard","card number","card no","card details","card info",
-      "cc number","cc no","credit","debit","debit card","debitcard","visa","mastercard",
-      "rupay","amex","american express","payment card","bank card","atm","atm card",
-      "expiry","cvv","credit card number","debit card number","atm card number"
+      "credit card","creditcard","card number","card no","card details",
+      "cc number","debit card","visa","mastercard","rupay","amex",
+      "payment card","bank card","atm card","expiry","cvv"
     ],
 
     aadhaar: [
-      "aadhaar","aadhar","adhar","aadhaar number","aadhar number","aadhaar no","aadhar no",
-      "uid","uidai","uid number","aadhaar id","aadhaar card","aadhar card","aadhaar details"
+      "aadhaar","aadhar","uid","uidai","aadhaar number","aadhaar card"
     ],
 
     pan: [
-      "pan","pan number","pan no","pan card","permanent account number",
-      "permanent account no","income tax","tax id","tax identification",
-      "tax number","pan details"
+      "pan","pan number","pan card","permanent account number","income tax"
     ],
 
     phone: [
-      "phone","phone number","phone no","mobile","mobile number","mobile no","contact",
-      "contact number","contact no","call","call me","reach me","reach at",
-      "tel","telephone","telephone number","cell","cellphone","whatsapp","whatsapp number"
+      "phone","mobile","contact","call","telephone","whatsapp","reach at","call me"
     ],
 
     email: [
-      "email","email id","email address","mail","mail id","e-mail",
-      "e-mail id","contact email","official email","personal email"
+      "email","mail","email id","email address"
     ],
 
     ifsc: [
-      "ifsc","ifsc code","bank ifsc","branch code","bank branch code",
-      "ifsc number","branch ifsc","rtgs","neft","imps"
+      "ifsc","ifsc code","bank ifsc","rtgs","neft","imps"
     ],
 
     bankAccount: [
-      "account","account number","account no","account details","bank account",
-      "bank account number","bank a/c","a/c","a/c no","acc","acc no",
-      "savings account","current account","personal account","account holder",
-      "bank details","account information","account id"
+      "account","account number","bank account","a/c","account details"
     ]
   };
 
@@ -105,164 +93,219 @@ function detectPII(text) {
   }
 
 
+  function isOverlapping(start, end) {
 
-  // ---------- Payment Card ----------
+    return usedRanges.some(r =>
+      start < r.end && end > r.start
+    );
+  }
+
+
+  function addRange(start, end) {
+    usedRanges.push({ start, end });
+  }
+
+
+  /* ---------- 1️⃣ Payment Cards ---------- */
+
   const cardMatches = [...text.matchAll(piiPatterns.paymentCardNumber)];
+  const validCards = [];
 
-  if (cardMatches.length) {
+  cardMatches.forEach(match => {
 
-    const validCards = [];
+    const value = match[0];
+    const index = match.index;
+    const end = index + value.length;
 
-    cardMatches.forEach(match => {
+    if (!isValidCardNumber(value)) return;
 
-      const value = match[0];
-      const index = match.index;
+    if (isOverlapping(index, end)) return;
 
-      if (!isValidCardNumber(value)) return;
+    const contextWindow = getContextWindow(text, index, value.length);
 
-      const contextWindow = getContextWindow(text, index, value.length);
-
-      validCards.push({
-        value,
-        confidence: getConfidence("paymentCardNumber", contextWindow)
-      });
-
+    validCards.push({
+      value,
+      confidence: getConfidence("paymentCardNumber", contextWindow)
     });
 
-    if (validCards.length) detectedPII.paymentCardNumber = validCards;
-  }
+    addRange(index, end);
+
+  });
+
+  if (validCards.length) detectedPII.paymentCardNumber = validCards;
 
 
 
-  // ---------- Aadhaar ----------
+  /* ---------- 2️⃣ Aadhaar ---------- */
+
   const aadhaarMatches = [...text.matchAll(piiPatterns.aadhaar)];
+  const aadhaarResults = [];
 
-  if (aadhaarMatches.length) {
+  aadhaarMatches.forEach(match => {
 
-    detectedPII.aadhaar = aadhaarMatches.map(match => {
+    const value = match[0];
+    const digits = value.replace(/\D/g,"");
 
-      const value = match[0];
-      const index = match.index;
+    const index = match.index;
+    const end = index + value.length;
 
-      const contextWindow = getContextWindow(text, index, value.length);
+    /* Prevent Aadhaar from matching inside card numbers */
 
-      return {
-        value,
-        confidence: getConfidence("aadhaar", contextWindow)
-      };
+    if (digits.length === 12) {
 
+      const surrounding = text.substring(index-5, index+20);
+
+      if (/\d{16}/.test(surrounding.replace(/\D/g,""))) return;
+    }
+
+    if (isOverlapping(index,end)) return;
+
+    const contextWindow = getContextWindow(text,index,value.length);
+
+    aadhaarResults.push({
+      value,
+      confidence:getConfidence("aadhaar",contextWindow)
     });
+
+    addRange(index,end);
+
+  });
+
+  if(aadhaarResults.length) detectedPII.aadhaar = aadhaarResults;
+
+
+
+  /* ---------- PAN ---------- */
+
+  const panMatches=[...text.matchAll(piiPatterns.pan)];
+  const panResults=[];
+
+  panMatches.forEach(match=>{
+
+    const value=match[0];
+    const index=match.index;
+    const end=index+value.length;
+
+    if(isOverlapping(index,end)) return;
+
+    const contextWindow=getContextWindow(text,index,value.length);
+
+    panResults.push({
+      value,
+      confidence:getConfidence("pan",contextWindow)
+    });
+
+    addRange(index,end);
+
+  });
+
+  if(panResults.length) detectedPII.pan=panResults;
+
+
+
+  /* ---------- PHONE ---------- */
+
+  const phoneMatches=[...text.matchAll(piiPatterns.phone)];
+  const phoneResults=[];
+
+  phoneMatches.forEach(match=>{
+
+    const value=match[0];
+    const index=match.index;
+    const end=index+value.length;
+
+    if(isOverlapping(index,end)) return;
+
+    const contextWindow=getContextWindow(text,index,value.length);
+
+    phoneResults.push({
+      value,
+      confidence:getConfidence("phone",contextWindow)
+    });
+
+    addRange(index,end);
+
+  });
+
+  if(phoneResults.length) detectedPII.phone=phoneResults;
+
+
+
+  /* ---------- EMAIL ---------- */
+
+  const emailMatches=[...text.matchAll(piiPatterns.email)];
+
+  if(emailMatches.length){
+
+    detectedPII.email=emailMatches.map(match=>({
+      value:match[0],
+      confidence:"HIGH"
+    }));
+
   }
 
 
 
-  // ---------- PAN ----------
-  const panMatches = [...text.matchAll(piiPatterns.pan)];
+  /* ---------- IFSC ---------- */
 
-  if (panMatches.length) {
+  const ifscMatches=[...text.matchAll(piiPatterns.ifsc)];
+  const ifscResults=[];
 
-    detectedPII.pan = panMatches.map(match => {
+  ifscMatches.forEach(match=>{
 
-      const value = match[0];
-      const index = match.index;
+    const value=match[0];
+    const index=match.index;
+    const end=index+value.length;
 
-      const contextWindow = getContextWindow(text, index, value.length);
+    if(isOverlapping(index,end)) return;
 
-      return {
-        value,
-        confidence: getConfidence("pan", contextWindow)
-      };
+    const contextWindow=getContextWindow(text,index,value.length);
 
+    ifscResults.push({
+      value,
+      confidence:getConfidence("ifsc",contextWindow)
     });
-  }
+
+    addRange(index,end);
+
+  });
+
+  if(ifscResults.length) detectedPII.ifsc=ifscResults;
 
 
 
-  // ---------- Phone ----------
-  const phoneMatches = [...text.matchAll(piiPatterns.phone)];
+  /* ---------- BANK ACCOUNT ---------- */
 
-  if (phoneMatches.length) {
+/* ---------- BANK ACCOUNT ---------- */
 
-    detectedPII.phone = phoneMatches.map(match => {
+const bankMatches = [...text.matchAll(piiPatterns.bankAccount)];
+const bankResults = [];
 
-      const value = match[0];
-      const index = match.index;
+bankMatches.forEach(match => {
 
-      const contextWindow = getContextWindow(text, index, value.length);
+  const value = match[0];
+  const digits = value.replace(/\D/g, "");
 
-      return {
-        value,
-        confidence: getConfidence("phone", contextWindow)
-      };
+  const index = match.index;
+  const end = index + value.length;
 
-    });
-  }
+  // Skip if overlapping with higher priority PII
+  if (isOverlapping(index,end)) return;
 
+  const contextWindow = getContextWindow(text,index,value.length);
+  const confidence = getConfidence("bankAccount",contextWindow);
 
+  // Only accept bank accounts when context confirms it
+  if (confidence === "LOW") return;
 
-  // ---------- Email ----------
-  const emailMatches = [...text.matchAll(piiPatterns.email)];
+  bankResults.push({
+    value,
+    confidence
+  });
 
-  if (emailMatches.length) {
+});
 
-    detectedPII.email = emailMatches.map(match => {
-
-      const value = match[0];
-      const index = match.index;
-
-      const contextWindow = getContextWindow(text, index, value.length);
-
-      return {
-        value,
-        confidence: getConfidence("email", contextWindow)
-      };
-
-    });
-  }
-
-
-
-  // ---------- IFSC ----------
-  const ifscMatches = [...text.matchAll(piiPatterns.ifsc)];
-
-  if (ifscMatches.length) {
-
-    detectedPII.ifsc = ifscMatches.map(match => {
-
-      const value = match[0];
-      const index = match.index;
-
-      const contextWindow = getContextWindow(text, index, value.length);
-
-      return {
-        value,
-        confidence: getConfidence("ifsc", contextWindow)
-      };
-
-    });
-  }
-
-
-
-  // ---------- Bank Account ----------
-  const bankMatches = [...text.matchAll(piiPatterns.bankAccount)];
-
-  if (bankMatches.length) {
-
-    detectedPII.bankAccount = bankMatches.map(match => {
-
-      const value = match[0];
-      const index = match.index;
-
-      const contextWindow = getContextWindow(text, index, value.length);
-
-      return {
-        value,
-        confidence: getConfidence("bankAccount", contextWindow)
-      };
-
-    });
-  }
+if (bankResults.length) detectedPII.bankAccount = bankResults;
 
 
   return detectedPII;
