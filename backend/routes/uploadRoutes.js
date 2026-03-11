@@ -1,8 +1,9 @@
-const detectPII = require("../utils/piiDetector");
-
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
+
+const detectPII = require("../utils/piiDetector");
+const { redactText, saveRedactedFile } = require("../utils/redactor");
 
 const {
   extractTextFromPDF,
@@ -34,6 +35,7 @@ const upload = multer({ storage });
 */
 router.post("/upload", upload.single("document"), async (req, res) => {
   try {
+
     // 1️⃣ Check if file exists
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
@@ -42,8 +44,9 @@ router.post("/upload", upload.single("document"), async (req, res) => {
     const filePath = req.file.path;
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
 
-    // 2️⃣ Allowed file types validation
+    // 2️⃣ Validate allowed file types
     const allowedTypes = [".pdf", ".docx"];
+
     if (!allowedTypes.includes(fileExtension)) {
       return res.status(400).json({
         message: "Only PDF and DOCX files are allowed"
@@ -52,44 +55,73 @@ router.post("/upload", upload.single("document"), async (req, res) => {
 
     let extractedText = "";
 
-    // 3️⃣ Extract text based on file type
-        // NOTE: PDF extraction is currently abstracted due to Node.js compatibility issues.
-        // The design allows easy replacement with a stable PDF parser in future.
+    // 3️⃣ Extract text
+    // NOTE: PDF extraction currently placeholder (design ready for replacement)
     if (fileExtension === ".pdf") {
       extractedText = await extractTextFromPDF(filePath);
     } else if (fileExtension === ".docx") {
       extractedText = await extractTextFromDOCX(filePath);
     }
 
-    // 4️⃣ Print extracted text in console (debugging)
+    // 4️⃣ Debug: Print extracted text
     console.log("===== EXTRACTED TEXT START =====");
     console.log(extractedText);
     console.log("===== EXTRACTED TEXT END =====");
 
 
-    // 5️⃣ Detect PII from extracted text
+
+    /* ============================
+       5️⃣ Detect PII
+       ============================ */
+
     const detectedPII = detectPII(extractedText);
 
-    // 🔥 Print detected PII in console
     console.log("===== DETECTED PII START =====");
     console.log(detectedPII);
     console.log("===== DETECTED PII END =====");
 
 
-    // 5️⃣ Send success response
-    res.json({
-    message: "File uploaded, text extracted and PII detected",
-    fileType: fileExtension,
-    textLength: extractedText.length,
-    detectedPII
-    });
 
+    /* ============================
+       6️⃣ Redact PII
+       ============================ */
+
+    const redactedText = redactText(extractedText, detectedPII);
+
+    console.log("===== REDACTED TEXT START =====");
+    console.log(redactedText);
+    console.log("===== REDACTED TEXT END =====");
+
+
+
+    /* ============================
+       7️⃣ Save redacted document
+       ============================ */
+
+    const redactedFilePath = saveRedactedFile(redactedText);
+
+
+
+    /* ============================
+       8️⃣ Send response
+       ============================ */
+
+    res.json({
+      message: "File uploaded, PII detected and redacted successfully",
+      fileType: fileExtension,
+      textLength: extractedText.length,
+      detectedPII,
+      redactedFile: redactedFilePath
+    });
 
   } catch (error) {
+
     console.error(error);
+
     res.status(500).json({
-      message: "Error extracting text"
+      message: "Error processing document"
     });
+
   }
 });
 
