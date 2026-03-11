@@ -311,4 +311,5 @@ if (bankResults.length) detectedPII.bankAccount = bankResults;
   return detectedPII;
 }
 
+
 module.exports = detectPII;
