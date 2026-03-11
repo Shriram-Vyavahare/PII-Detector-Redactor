@@ -98,7 +98,9 @@ router.post("/upload", upload.single("document"), async (req, res) => {
        7️⃣ Save redacted document
        ============================ */
 
-    const redactedFilePath = saveRedactedFile(redactedText);
+    saveRedactedFile(redactedText);
+
+    const redactedFilePath = "/uploads/redacted_output.txt";
 
 
 
@@ -125,4 +127,22 @@ router.post("/upload", upload.single("document"), async (req, res) => {
   }
 });
 
+router.get("/download", (req, res) => {
+
+  const filePath = "D:/Downloads/redacted_document.txt";
+
+  res.download(filePath, "redacted_document.txt", (err) => {
+
+    if (err) {
+
+      console.error("Download error:", err);
+      res.status(500).send("File not found");
+
+    }
+
+  });
+
+});
+
 module.exports = router;
+

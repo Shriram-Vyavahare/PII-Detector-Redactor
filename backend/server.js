@@ -1,16 +1,21 @@
-const express=require("express");
-const app=express();
+const express = require("express");
+const path = require("path");
 
 const uploadRoutes = require("./routes/uploadRoutes");
 
-const port=3000;
+const app = express();
+const port = 3000;
 
-app.use("/api",uploadRoutes);
+/* Serve frontend */
+app.use(express.static(path.join(__dirname, "../frontend")));
 
-app.listen(port,()=>{
-    console.log(`app is listening on port ${port}`);
+/* Serve uploaded/redacted files */
+app.use("/uploads", express.static("uploads"));
+
+/* API routes */
+app.use("/api", uploadRoutes);
+
+/* Start server */
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
 });
-
-app.get("/",(req,res)=>{
-    res.send("PII Detector and Redactor Backend is running");
-}); 
