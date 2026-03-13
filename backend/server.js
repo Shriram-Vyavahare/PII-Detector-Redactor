@@ -10,7 +10,7 @@ const port = 3000;
 app.use(express.static(path.join(__dirname, "../frontend")));
 
 /* Serve uploaded/redacted files */
-app.use("/uploads", express.static("uploads"));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* API routes */
 app.use("/api", uploadRoutes);
