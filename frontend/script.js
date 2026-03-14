@@ -9,6 +9,8 @@ const piiList = document.getElementById("piiList");
 
 const downloadBtn = document.getElementById("downloadBtn");
 
+const uploadBox = document.getElementById("uploadBox");
+
 let selectedFile = null;
 let downloadPath = "";
 
@@ -21,12 +23,45 @@ fileInput.click();
 
 });
 
+/* Drag & Drop Upload */
+
+uploadBox.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  uploadBox.style.borderColor = "#007bff";
+});
+
+uploadBox.addEventListener("dragleave", () => {
+  uploadBox.style.borderColor = "#aaa";
+});
+
+uploadBox.addEventListener("drop", (e) => {
+  e.preventDefault();
+
+  const files = e.dataTransfer.files;
+
+  if(files.length > 0){
+
+    selectedFile = files[0];
+    fileInput.files = files;
+
+    processBtn.disabled = false;
+
+    document.getElementById("uploadText").textContent = selectedFile.name;
+
+  }
+
+  uploadBox.style.borderColor = "#aaa";
+
+});
+
 
 fileInput.addEventListener("change", () => {
 
 selectedFile = fileInput.files[0];
 
 if(selectedFile){
+
+document.getElementById("uploadText").textContent = selectedFile.name;
 
 processBtn.disabled = false;
 
@@ -69,6 +104,11 @@ loader.classList.add("hidden");
 showResults(data);
 
 downloadPath = data.redactedFile;
+
+/* RESET FILE INPUT */
+fileInput.value = "";
+selectedFile = null;
+processBtn.disabled = true;
 
 }catch(err){
 
@@ -122,6 +162,5 @@ piiList.appendChild(div);
 
 downloadBtn.addEventListener("click",()=>{
 
-window.location.href = "/api/download";
-
+window.location.href = window.location.origin + downloadPath;
 });

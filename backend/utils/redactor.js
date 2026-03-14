@@ -102,14 +102,14 @@ function redactText(originalText, detectedPII) {
 
 /* ---------------- Save Redacted File ---------------- */
 
-    function saveRedactedFile(text) {
+function saveRedactedFile(text) {
 
-    const outputPath = "D:/Downloads/redacted_document.txt";
+  const outputPath = path.join(__dirname, "../uploads/redacted_output.txt");
 
-    fs.writeFileSync(outputPath, text);
+  fs.writeFileSync(outputPath, text);
 
-    return outputPath;
-    }
+  return "/uploads/redacted_output.txt";
+}
 
 
 /* ---------------- Export Functions ---------------- */
