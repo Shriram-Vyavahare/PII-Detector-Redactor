@@ -126,10 +126,24 @@ alert("Error processing file");
 function showResults(data){
 
 results.classList.remove("hidden");
-
 piiList.innerHTML="";
 
 const detected = data.detectedPII;
+
+if(Object.keys(detected).length === 0){
+
+  const div = document.createElement("div");
+  div.className = "no-pii-message";
+  div.textContent = "No sensitive information detected.";
+
+  piiList.appendChild(div);
+
+  downloadBtn.disabled = true;
+
+  return;
+}
+
+downloadBtn.disabled = false;
 
 Object.keys(detected).forEach(type=>{
 
@@ -144,7 +158,6 @@ const confidenceClass = item.confidence === "HIGH" ? "high":"low";
 div.innerHTML=`
 
 <span>${type.toUpperCase()} : ${item.value}</span>
-
 <span class="${confidenceClass}">${item.confidence}</span>
 
 `;

@@ -66,9 +66,9 @@ router.post("/upload", upload.single("document"), async (req, res) => {
     }
 
     // 4️⃣ Debug: Print extracted text
-    console.log("===== EXTRACTED TEXT START =====");
-    console.log(extractedText);
-    console.log("===== EXTRACTED TEXT END =====");
+    // console.log("===== EXTRACTED TEXT START =====");
+    // console.log(extractedText);
+    // console.log("===== EXTRACTED TEXT END =====");
 
 
 
@@ -78,9 +78,11 @@ router.post("/upload", upload.single("document"), async (req, res) => {
 
     const detectedPII = detectPII(extractedText);
 
-    console.log("===== DETECTED PII START =====");
-    console.log(detectedPII);
-    console.log("===== DETECTED PII END =====");
+    const hasPII = Object.keys(detectedPII).length > 0;
+
+    // console.log("===== DETECTED PII START =====");
+    // console.log(detectedPII);
+    // console.log("===== DETECTED PII END =====");
 
 
 
@@ -90,9 +92,9 @@ router.post("/upload", upload.single("document"), async (req, res) => {
 
     const redactedText = redactText(extractedText, detectedPII);
 
-    console.log("===== REDACTED TEXT START =====");
-    console.log(redactedText);
-    console.log("===== REDACTED TEXT END =====");
+    // console.log("===== REDACTED TEXT START =====");
+    // console.log(redactedText);
+    // console.log("===== REDACTED TEXT END =====");
 
 
 
@@ -110,6 +112,16 @@ router.post("/upload", upload.single("document"), async (req, res) => {
        8️⃣ Send response
        ============================ */
 
+        if(!hasPII){
+
+        return res.json({
+          message: "No PII detected in the document",
+          detectedPII: {},
+          redactedFile: null
+        });
+
+      }
+      
     res.json({
       message: "File uploaded, PII detected and redacted successfully",
       fileType: fileExtension,

@@ -206,6 +206,20 @@ background: #e64a19;
 }
 
 
+.no-pii-message{
+    font-size: 18px;
+    font-weight: 800;
+    color: #000;
+    margin-top: 10px;
+    text-align: center;
+}
+
+
+button:disabled{
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
 /* Responsive */
 
 @media(max-width:600px){
@@ -223,3 +237,6 @@ padding:20px;
 }
 
 }
+
+
+
