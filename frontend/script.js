@@ -160,7 +160,8 @@ piiList.appendChild(div);
 
 /* Download File */
 
-downloadBtn.addEventListener("click",()=>{
+downloadBtn.addEventListener("click", () => {
 
-window.location.href = window.location.origin + downloadPath;
+  window.location.href = "/api/download";
+
 });

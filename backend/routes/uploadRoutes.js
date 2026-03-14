@@ -131,18 +131,9 @@ router.post("/upload", upload.single("document"), async (req, res) => {
 
 router.get("/download", (req, res) => {
 
-  const filePath = "D:/Downloads/redacted_document.txt";
+  const filePath = path.join(__dirname, "../uploads/redacted_output.txt");
 
-  res.download(filePath, "redacted_document.txt", (err) => {
-
-    if (err) {
-
-      console.error("Download error:", err);
-      res.status(500).send("File not found");
-
-    }
-
-  });
+  res.download(filePath, "redacted_document.txt");
 
 });
 
