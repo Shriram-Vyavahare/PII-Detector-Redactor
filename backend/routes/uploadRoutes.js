@@ -3,7 +3,7 @@ const multer = require("multer");
 const path = require("path");
 
 const detectPII = require("../utils/piiDetector");
-const { redactText, saveRedactedDocx } = require("../utils/redactor");
+const { redactDocxFile } = require("../utils/redactor");
 
 const {
   extractTextFromPDF,
@@ -17,6 +17,7 @@ const router = express.Router();
   Multer storage configuration
   ============================
 */
+
 const uploadPath = path.join(__dirname, "../uploads");
 
 const storage = multer.diskStorage({
@@ -25,28 +26,36 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     cb(null, Date.now() + "-" + file.originalname);
-  },
+  }
 });
 
 const upload = multer({ storage });
+
 
 /*
   ============================
   Upload & Extract Route
   ============================
 */
+
 router.post("/upload", upload.single("document"), async (req, res) => {
+
   try {
 
-    // 1️⃣ Check if file exists
+    /* 1️⃣ Check file upload */
+
     if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
+      return res.status(400).json({
+        message: "No file uploaded"
+      });
     }
 
     const filePath = req.file.path;
     const fileExtension = path.extname(req.file.originalname).toLowerCase();
 
-    // 2️⃣ Validate allowed file types
+
+    /* 2️⃣ Validate file type */
+
     const allowedTypes = [".pdf", ".docx"];
 
     if (!allowedTypes.includes(fileExtension)) {
@@ -55,72 +64,55 @@ router.post("/upload", upload.single("document"), async (req, res) => {
       });
     }
 
+
+    /* 3️⃣ Extract text */
+
     let extractedText = "";
 
-    // 3️⃣ Extract text
-    // NOTE: PDF extraction currently placeholder (design ready for replacement)
     if (fileExtension === ".pdf") {
       extractedText = await extractTextFromPDF(filePath);
-    } else if (fileExtension === ".docx") {
+    }
+
+    if (fileExtension === ".docx") {
       extractedText = await extractTextFromDOCX(filePath);
     }
 
-    // 4️⃣ Debug: Print extracted text
-    // console.log("===== EXTRACTED TEXT START =====");
-    // console.log(extractedText);
-    // console.log("===== EXTRACTED TEXT END =====");
-
-
 
     /* ============================
-       5️⃣ Detect PII
+       4️⃣ Detect PII
        ============================ */
 
     const detectedPII = detectPII(extractedText);
 
     const hasPII = Object.keys(detectedPII).length > 0;
 
-    // console.log("===== DETECTED PII START =====");
-    // console.log(detectedPII);
-    // console.log("===== DETECTED PII END =====");
 
+    /* ============================
+       5️⃣ If no PII detected
+       ============================ */
+
+    if (!hasPII) {
+
+      return res.json({
+        message: "No PII detected in the document",
+        detectedPII: {},
+        redactedFile: null
+      });
+
+    }
 
 
     /* ============================
-       6️⃣ Redact PII
+       6️⃣ Redact DOCX (preserve layout)
        ============================ */
 
-    const redactedText = redactText(extractedText, detectedPII);
-
-    // console.log("===== REDACTED TEXT START =====");
-    // console.log(redactedText);
-    // console.log("===== REDACTED TEXT END =====");
-
+    const redactedFilePath = await redactDocxFile(filePath, detectedPII);
 
 
     /* ============================
-       7️⃣ Save redacted document
+       7️⃣ Send response
        ============================ */
 
-
-    const redactedFilePath = await saveRedactedDocx(redactedText);
-
-
-
-    /* ============================
-       8️⃣ Send response
-       ============================ */
-
-        if(!hasPII){
-
-        return res.json({
-          message: "No PII detected in the document",
-          detectedPII: {},
-          redactedFile: null
-        });
-
-      }
-      
     res.json({
       message: "File uploaded, PII detected and redacted successfully",
       fileType: fileExtension,
@@ -129,7 +121,9 @@ router.post("/upload", upload.single("document"), async (req, res) => {
       redactedFile: redactedFilePath
     });
 
-  } catch (error) {
+  }
+
+  catch (error) {
 
     console.error(error);
 
@@ -138,15 +132,7 @@ router.post("/upload", upload.single("document"), async (req, res) => {
     });
 
   }
+
 });
 
-// router.get("/download", (req, res) => {
-
-//   const filePath = path.join(__dirname, "../uploads/redacted_output.txt");
-
-//   res.download(filePath, "redacted_document.txt");
-
-// });
-
 module.exports = router;
-

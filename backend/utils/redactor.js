@@ -1,8 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-
-const { Document, Packer, Paragraph } = require("docx");
-
+const AdmZip = require("adm-zip");
 
 /* ---------------- Masking Functions ---------------- */
 
@@ -34,14 +32,11 @@ function maskIFSC(value) {
 }
 
 function maskBankAccount(value) {
-
   const digits = value.replace(/\D/g,"");
   const visible = digits.slice(-4);
   const maskedLength = digits.length - 4;
-
   return "X".repeat(maskedLength) + visible;
 }
-
 
 /* ---------------- Redaction Engine ---------------- */
 
@@ -54,6 +49,85 @@ function redactText(originalText, detectedPII) {
     detectedPII[type].forEach(item => {
 
       const value = item.value;
+      let masked = value;
+
+      switch(type){
+        case "aadhaar":
+          masked = maskAadhaar(value);
+          break;
+
+        case "phone":
+          masked = maskPhone(value);
+          break;
+
+        case "paymentCardNumber":
+          masked = maskCard(value);
+          break;
+
+        case "pan":
+          masked = maskPAN(value);
+          break;
+
+        case "email":
+          masked = maskEmail(value);
+          break;
+
+        case "bankAccount":
+          masked = maskBankAccount(value);
+          break;
+
+        case "ifsc":
+          masked = maskIFSC(value);
+          break;
+      }
+
+      const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(escapedValue, "g");
+
+      redactedText = redactedText.replace(regex, masked);
+
+    });
+
+  });
+
+  return redactedText;
+}
+
+/* ---------------- Redact DOCX while preserving layout ---------------- */
+
+async function redactDocxFile(inputPath, detectedPII){
+
+  const zip = new AdmZip(inputPath);
+
+  const xmlEntry = zip.getEntry("word/document.xml");
+
+  let xml = xmlEntry.getData().toString("utf8");
+
+
+  /* -------- Extract all text nodes -------- */
+
+  const textNodes = [];
+
+  xml.replace(/<w:t[^>]*>(.*?)<\/w:t>/g,(match,text)=>{
+
+    textNodes.push(text);
+
+  });
+
+
+  /* Combine into full document text */
+
+  let fullText = textNodes.join("");
+
+
+  /* -------- Apply Redaction -------- */
+
+  Object.keys(detectedPII).forEach(type => {
+
+    detectedPII[type].forEach(item => {
+
+      const value = item.value;
+
       let masked = value;
 
       switch(type){
@@ -87,50 +161,50 @@ function redactText(originalText, detectedPII) {
           break;
       }
 
-      // Escape regex special characters in the value
-      const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
 
-      const regex = new RegExp(escapedValue, "g");
+      const regex = new RegExp(escapedValue,"g");
 
-      redactedText = redactedText.replace(regex, masked);
+      fullText = fullText.replace(regex,masked);
 
     });
 
   });
 
-  return redactedText;
-}
 
+  /* -------- Write masked text back into nodes -------- */
 
-/* ---------------- Save Redacted DOCX ---------------- */
+  let pointer = 0;
 
-async function saveRedactedDocx(text){
+  xml = xml.replace(/<w:t([^>]*)>(.*?)<\/w:t>/g,(match,attrs,originalText)=>{
 
-  const { Document, Packer, Paragraph } = require("docx");
+    const length = originalText.length;
 
-  const filename = "redacted_" + Date.now() + ".docx";
+    const newText = fullText.substr(pointer,length);
 
-  const filePath = path.join(__dirname, "../uploads", filename);
+    pointer += length;
 
-  const doc = new Document({
-    sections: [
-      {
-        properties: {},
-        children: text.split("\n").map(line => new Paragraph(line)),
-      },
-    ],
+    return `<w:t${attrs}>${newText}</w:t>`;
+
   });
 
-  const buffer = await Packer.toBuffer(doc);
 
-  fs.writeFileSync(filePath, buffer);
+  /* -------- Save DOCX -------- */
 
-  return "/uploads/" + filename;
+  zip.updateFile("word/document.xml",Buffer.from(xml));
+
+  const filename = "redacted_"+Date.now()+".docx";
+
+  const outputPath = path.join(__dirname,"../uploads",filename);
+
+  zip.writeZip(outputPath);
+
+  return "/uploads/"+filename;
 }
 
 /* ---------------- Export Functions ---------------- */
 
 module.exports = {
   redactText,
-  saveRedactedDocx
+  redactDocxFile
 };
