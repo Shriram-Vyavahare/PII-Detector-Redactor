@@ -3,7 +3,7 @@ const multer = require("multer");
 const path = require("path");
 
 const detectPII = require("../utils/piiDetector");
-const { redactText, saveRedactedFile } = require("../utils/redactor");
+const { redactText, saveRedactedDocx } = require("../utils/redactor");
 
 const {
   extractTextFromPDF,
@@ -102,9 +102,8 @@ router.post("/upload", upload.single("document"), async (req, res) => {
        7️⃣ Save redacted document
        ============================ */
 
-    saveRedactedFile(redactedText);
 
-    const redactedFilePath = "/uploads/redacted_output.txt";
+    const redactedFilePath = await saveRedactedDocx(redactedText);
 
 
 
@@ -141,13 +140,13 @@ router.post("/upload", upload.single("document"), async (req, res) => {
   }
 });
 
-router.get("/download", (req, res) => {
+// router.get("/download", (req, res) => {
 
-  const filePath = path.join(__dirname, "../uploads/redacted_output.txt");
+//   const filePath = path.join(__dirname, "../uploads/redacted_output.txt");
 
-  res.download(filePath, "redacted_document.txt");
+//   res.download(filePath, "redacted_document.txt");
 
-});
+// });
 
 module.exports = router;
 

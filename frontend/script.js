@@ -175,6 +175,8 @@ piiList.appendChild(div);
 
 downloadBtn.addEventListener("click", () => {
 
-  window.location.href = "/api/download";
+  if(!downloadPath) return;
+
+  window.location.href = window.location.origin + downloadPath;
 
 });

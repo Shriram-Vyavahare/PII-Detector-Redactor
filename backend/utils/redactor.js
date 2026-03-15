@@ -1,6 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 
+const { Document, Packer, Paragraph } = require("docx");
+
 
 /* ---------------- Masking Functions ---------------- */
 
@@ -100,21 +102,35 @@ function redactText(originalText, detectedPII) {
 }
 
 
-/* ---------------- Save Redacted File ---------------- */
+/* ---------------- Save Redacted DOCX ---------------- */
 
-function saveRedactedFile(text) {
+async function saveRedactedDocx(text){
 
-  const outputPath = path.join(__dirname, "../uploads/redacted_output.txt");
+  const { Document, Packer, Paragraph } = require("docx");
 
-  fs.writeFileSync(outputPath, text);
+  const filename = "redacted_" + Date.now() + ".docx";
 
-  return "/uploads/redacted_output.txt";
+  const filePath = path.join(__dirname, "../uploads", filename);
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {},
+        children: text.split("\n").map(line => new Paragraph(line)),
+      },
+    ],
+  });
+
+  const buffer = await Packer.toBuffer(doc);
+
+  fs.writeFileSync(filePath, buffer);
+
+  return "/uploads/" + filename;
 }
-
 
 /* ---------------- Export Functions ---------------- */
 
 module.exports = {
   redactText,
-  saveRedactedFile
+  saveRedactedDocx
 };
