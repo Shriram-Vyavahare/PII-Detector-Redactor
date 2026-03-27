@@ -207,4 +207,4 @@ async function redactDocxFile(inputPath, detectedPII){
 module.exports = {
   redactText,
   redactDocxFile
-};
+}; 

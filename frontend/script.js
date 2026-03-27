@@ -180,3 +180,4 @@ downloadBtn.addEventListener("click", () => {
   window.location.href = window.location.origin + downloadPath;
 
 });
+ 

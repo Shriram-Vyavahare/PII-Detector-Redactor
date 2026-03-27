@@ -29,4 +29,4 @@ const piiPatterns = {
   bankAccount: /\b\d{11,18}\b/g
 };
 
-module.exports = piiPatterns;
+module.exports = piiPatterns; 

@@ -27,4 +27,4 @@ async function extractTextFromDOCX(filePath) {
 module.exports = {
   extractTextFromPDF,
   extractTextFromDOCX,
-};
+}; 

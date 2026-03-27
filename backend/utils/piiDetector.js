@@ -312,4 +312,4 @@ if (bankResults.length) detectedPII.bankAccount = bankResults;
 }
 
 
-module.exports = detectPII;
+module.exports = detectPII; 
