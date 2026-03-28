@@ -1,210 +1,126 @@
-const fs = require("fs");
+const fs   = require("fs");
 const path = require("path");
-const AdmZip = require("adm-zip");
+const { execFile } = require("child_process");
 
-/* ---------------- Masking Functions ---------------- */
+const pythonCmd  = process.platform === "win32" ? "python" : "python3";
+const uploadsDir = path.join(__dirname, "../uploads");
 
-function maskAadhaar(value) {
-  const digits = value.replace(/\D/g, "");
-  return "XXXX XXXX " + digits.slice(-4);
+/* ── helpers ──────────────────────────────────────────────────────────────── */
+
+function runPython(scriptPath, args) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      pythonCmd,
+      [scriptPath, ...args],
+      { maxBuffer: 20 * 1024 * 1024, shell: false },
+      (error, stdout, stderr) => {
+        if (error) return reject(new Error(stderr || error.message));
+        const out = stdout.trim();
+        if (out.startsWith("OK:")) return resolve(out.slice(3)); // full output path
+        reject(new Error("Unexpected output: " + out + " | " + stderr));
+      }
+    );
+  });
 }
 
+/* ── Masking Functions ────────────────────────────────────────────────────── */
+
+function maskAadhaar(value) {
+  return "XXXX XXXX " + value.replace(/\D/g, "").slice(-4);
+}
 function maskPhone(value) {
   return "******" + value.slice(-4);
 }
-
 function maskCard(value) {
-  const digits = value.replace(/\D/g, "");
-  return "XXXX XXXX XXXX " + digits.slice(-4);
+  return "XXXX XXXX XXXX " + value.replace(/\D/g, "").slice(-4);
 }
-
 function maskPAN(value) {
-  return value.slice(0,5) + "****" + value.slice(-1);
+  return value.slice(0, 5) + "****" + value.slice(-1);
 }
-
 function maskEmail(value) {
-  const parts = value.split("@");
-  return parts[0].slice(0,2) + "****@" + parts[1];
+  const [local, domain] = value.split("@");
+  return local.slice(0, 2) + "****@" + domain;
 }
-
 function maskIFSC(value) {
   return "XXXXXXX" + value.slice(-4);
 }
-
 function maskBankAccount(value) {
-  const digits = value.replace(/\D/g,"");
-  const visible = digits.slice(-4);
-  const maskedLength = digits.length - 4;
-  return "X".repeat(maskedLength) + visible;
+  const digits = value.replace(/\D/g, "");
+  return "X".repeat(digits.length - 4) + digits.slice(-4);
 }
 
-/* ---------------- Redaction Engine ---------------- */
+/* ── Plain-text redaction (used for PII detection display only) ───────────── */
 
 function redactText(originalText, detectedPII) {
-
-  let redactedText = originalText;
-
+  let out = originalText;
   Object.keys(detectedPII).forEach(type => {
-
-    detectedPII[type].forEach(item => {
-
-      const value = item.value;
+    detectedPII[type].forEach(({ value }) => {
       let masked = value;
-
-      switch(type){
-        case "aadhaar":
-          masked = maskAadhaar(value);
-          break;
-
-        case "phone":
-          masked = maskPhone(value);
-          break;
-
-        case "paymentCardNumber":
-          masked = maskCard(value);
-          break;
-
-        case "pan":
-          masked = maskPAN(value);
-          break;
-
-        case "email":
-          masked = maskEmail(value);
-          break;
-
-        case "bankAccount":
-          masked = maskBankAccount(value);
-          break;
-
-        case "ifsc":
-          masked = maskIFSC(value);
-          break;
+      switch (type) {
+        case "aadhaar":           masked = maskAadhaar(value);    break;
+        case "phone":             masked = maskPhone(value);       break;
+        case "paymentCardNumber": masked = maskCard(value);        break;
+        case "pan":               masked = maskPAN(value);         break;
+        case "email":             masked = maskEmail(value);       break;
+        case "bankAccount":       masked = maskBankAccount(value); break;
+        case "ifsc":              masked = maskIFSC(value);        break;
       }
-
-      const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const regex = new RegExp(escapedValue, "g");
-
-      redactedText = redactedText.replace(regex, masked);
-
+      out = out.replace(new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), masked);
     });
-
   });
-
-  return redactedText;
+  return out;
 }
 
-/* ---------------- Redact DOCX while preserving layout ---------------- */
+/* ── PDF input → layout-preserving overlay PDF ────────────────────────────── */
 
-async function redactDocxFile(inputPath, detectedPII){
+async function saveRedactedPDF(inputPath, detectedPII) {
+  const filename   = "redacted_" + Date.now() + ".pdf";
+  const outputPath = path.join(uploadsDir, filename);
+  const scriptPath = path.join(__dirname, "pdf_redactor.py");
 
-  const zip = new AdmZip(inputPath);
-
-  const xmlEntry = zip.getEntry("word/document.xml");
-
-  let xml = xmlEntry.getData().toString("utf8");
-
-
-  /* -------- Extract all text nodes -------- */
-
-  const textNodes = [];
-
-  xml.replace(/<w:t[^>]*>(.*?)<\/w:t>/g,(match,text)=>{
-
-    textNodes.push(text);
-
-  });
-
-
-  /* Combine into full document text */
-
-  let fullText = textNodes.join("");
-
-
-  /* -------- Apply Redaction -------- */
-
-  Object.keys(detectedPII).forEach(type => {
-
-    detectedPII[type].forEach(item => {
-
-      const value = item.value;
-
-      let masked = value;
-
-      switch(type){
-
-        case "aadhaar":
-          masked = maskAadhaar(value);
-          break;
-
-        case "phone":
-          masked = maskPhone(value);
-          break;
-
-        case "paymentCardNumber":
-          masked = maskCard(value);
-          break;
-
-        case "pan":
-          masked = maskPAN(value);
-          break;
-
-        case "email":
-          masked = maskEmail(value);
-          break;
-
-        case "bankAccount":
-          masked = maskBankAccount(value);
-          break;
-
-        case "ifsc":
-          masked = maskIFSC(value);
-          break;
-      }
-
-      const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-
-      const regex = new RegExp(escapedValue,"g");
-
-      fullText = fullText.replace(regex,masked);
-
-    });
-
-  });
-
-
-  /* -------- Write masked text back into nodes -------- */
-
-  let pointer = 0;
-
-  xml = xml.replace(/<w:t([^>]*)>(.*?)<\/w:t>/g,(match,attrs,originalText)=>{
-
-    const length = originalText.length;
-
-    const newText = fullText.substr(pointer,length);
-
-    pointer += length;
-
-    return `<w:t${attrs}>${newText}</w:t>`;
-
-  });
-
-
-  /* -------- Save DOCX -------- */
-
-  zip.updateFile("word/document.xml",Buffer.from(xml));
-
-  const filename = "redacted_"+Date.now()+".docx";
-
-  const outputPath = path.join(__dirname,"../uploads",filename);
-
-  zip.writeZip(outputPath);
-
-  return "/uploads/"+filename;
+  await runPython(scriptPath, [inputPath, outputPath, JSON.stringify(detectedPII)]);
+  return "/uploads/" + filename;
 }
 
-/* ---------------- Export Functions ---------------- */
+/* ── DOCX input → layout-preserving PDF ──────────────────────────────────────
+ *
+ * Step 1: LibreOffice converts DOCX → PDF  (all formatting preserved)
+ * Step 2: pdf_redactor.py overlays white boxes + masked text on that PDF
+ *         (exact same pipeline as a PDF input — no formatting lost)
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+async function saveRedactedDocxAsPDF(inputDocxPath, detectedPII) {
+
+  // Step 1 — DOCX → PDF via LibreOffice
+  const intermediateName = "intermediate_" + Date.now() + ".pdf";
+  const intermediatePath = path.join(uploadsDir, intermediateName);
+  const docxScript       = path.join(__dirname, "docx_to_pdf.py");
+
+  try {
+    await runPython(docxScript, [inputDocxPath, intermediatePath]);
+  } catch (err) {
+    throw new Error("DOCX→PDF conversion failed: " + err.message);
+  }
+
+  // Step 2 — overlay PII masks onto the intermediate PDF
+  const finalName = "redacted_" + Date.now() + ".pdf";
+  const finalPath = path.join(uploadsDir, finalName);
+  const pdfScript = path.join(__dirname, "pdf_redactor.py");
+
+  try {
+    await runPython(pdfScript, [intermediatePath, finalPath, JSON.stringify(detectedPII)]);
+  } finally {
+    // Clean up the intermediate file regardless of success/failure
+    try { fs.unlinkSync(intermediatePath); } catch (_) {}
+  }
+
+  return "/uploads/" + finalName;
+}
+
+/* ── Exports ──────────────────────────────────────────────────────────────── */
 
 module.exports = {
   redactText,
-  redactDocxFile
-}; 
+  saveRedactedPDF,          // PDF  input → overlay-redacted PDF
+  saveRedactedDocxAsPDF,    // DOCX input → LibreOffice PDF → overlay-redacted PDF
+};

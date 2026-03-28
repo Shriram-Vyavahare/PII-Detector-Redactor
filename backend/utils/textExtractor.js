@@ -1,17 +1,25 @@
 const fs = require("fs");
 const mammoth = require("mammoth");
+const pdfParse = require("pdf-parse");
 
 /**
- * Extract text from PDF file (TEMPORARY MOCK)
- * This keeps pipeline working and is replaceable later
+ * Extract text from PDF file
  */
 async function extractTextFromPDF(filePath) {
-  // Temporary safe fallback
-  return "[PDF TEXT EXTRACTION MODULE PLACEHOLDER]";
+  try {
+    const dataBuffer = fs.readFileSync(filePath);
+
+    const pdfData = await pdfParse(dataBuffer);
+
+    return pdfData.text;
+  } catch (error) {
+    console.error("PDF extraction error:", error);
+    throw new Error("Failed to extract text from PDF");
+  }
 }
 
 /**
- * Extract text from DOCX file (REAL, WORKING)
+ * Extract text from DOCX file
  */
 async function extractTextFromDOCX(filePath) {
   try {
@@ -27,4 +35,4 @@ async function extractTextFromDOCX(filePath) {
 module.exports = {
   extractTextFromPDF,
   extractTextFromDOCX,
-}; 
+};

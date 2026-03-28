@@ -18,10 +18,9 @@ let downloadPath = "";
 /* Browse File */
 
 browseBtn.addEventListener("click", () => {
-
-fileInput.click();
-
+  fileInput.click();
 });
+
 
 /* Drag & Drop Upload */
 
@@ -40,32 +39,28 @@ uploadBox.addEventListener("drop", (e) => {
   const files = e.dataTransfer.files;
 
   if(files.length > 0){
-
     selectedFile = files[0];
     fileInput.files = files;
 
     processBtn.disabled = false;
 
     document.getElementById("uploadText").textContent = selectedFile.name;
-
   }
 
   uploadBox.style.borderColor = "#aaa";
-
 });
 
 
+/* File Input Change */
+
 fileInput.addEventListener("change", () => {
 
-selectedFile = fileInput.files[0];
+  selectedFile = fileInput.files[0];
 
-if(selectedFile){
-
-document.getElementById("uploadText").textContent = selectedFile.name;
-
-processBtn.disabled = false;
-
-}
+  if(selectedFile){
+    document.getElementById("uploadText").textContent = selectedFile.name;
+    processBtn.disabled = false;
+  }
 
 });
 
@@ -74,49 +69,49 @@ processBtn.disabled = false;
 
 processBtn.addEventListener("click", async () => {
 
-if(!selectedFile){
+  if(!selectedFile){
+    alert("Please upload a file");
+    return;
+  }
 
-alert("Please upload a file");
+  loader.classList.remove("hidden");
 
-return;
+  const formData = new FormData();
+  formData.append("document", selectedFile);
 
-}
+  try{
 
-loader.classList.remove("hidden");
+    const response = await fetch("/api/upload",{
+      method:"POST",
+      body:formData
+    });
 
-const formData = new FormData();
+    const data = await response.json();
 
-formData.append("document", selectedFile);
+    loader.classList.add("hidden");
 
-try{
+    showResults(data);
 
-const response = await fetch("/api/upload",{
+    /* ✅ Handle PDF path safely */
+    if(data.redactedFile){
+      downloadPath = data.redactedFile;
+      downloadBtn.disabled = false;
+    } else {
+      downloadPath = "";
+      downloadBtn.disabled = true;
+    }
 
-method:"POST",
-body:formData
+    /* RESET FILE INPUT */
+    fileInput.value = "";
+    selectedFile = null;
+    processBtn.disabled = true;
 
-});
+  }catch(err){
 
-const data = await response.json();
+    loader.classList.add("hidden");
+    alert("Error processing file");
 
-loader.classList.add("hidden");
-
-showResults(data);
-
-downloadPath = data.redactedFile;
-
-/* RESET FILE INPUT */
-fileInput.value = "";
-selectedFile = null;
-processBtn.disabled = true;
-
-}catch(err){
-
-loader.classList.add("hidden");
-
-alert("Error processing file");
-
-}
+  }
 
 });
 
@@ -125,48 +120,46 @@ alert("Error processing file");
 
 function showResults(data){
 
-results.classList.remove("hidden");
-piiList.innerHTML="";
+  results.classList.remove("hidden");
+  piiList.innerHTML = "";
 
-const detected = data.detectedPII;
+  const detected = data.detectedPII;
 
-if(Object.keys(detected).length === 0){
+  /* ✅ No PII case */
 
-  const div = document.createElement("div");
-  div.className = "no-pii-message";
-  div.textContent = "No sensitive information detected.";
+  if(!detected || Object.keys(detected).length === 0){
 
-  piiList.appendChild(div);
+    const div = document.createElement("div");
+    div.className = "no-pii-message";
+    div.textContent = "No sensitive information detected.";
 
-  downloadBtn.disabled = true;
+    piiList.appendChild(div);
 
-  return;
-}
+    downloadBtn.disabled = true;
+    return;
+  }
 
-downloadBtn.disabled = false;
+  downloadBtn.disabled = false;
 
-Object.keys(detected).forEach(type=>{
+  Object.keys(detected).forEach(type => {
 
-detected[type].forEach(item=>{
+    detected[type].forEach(item => {
 
-const div=document.createElement("div");
+      const div = document.createElement("div");
+      div.className = "pii-item";
 
-div.className="pii-item";
+      const confidenceClass = item.confidence === "HIGH" ? "high":"low";
 
-const confidenceClass = item.confidence === "HIGH" ? "high":"low";
+      div.innerHTML = `
+        <span>${type.toUpperCase()} : ${item.value}</span>
+        <span class="${confidenceClass}">${item.confidence}</span>
+      `;
 
-div.innerHTML=`
+      piiList.appendChild(div);
 
-<span>${type.toUpperCase()} : ${item.value}</span>
-<span class="${confidenceClass}">${item.confidence}</span>
+    });
 
-`;
-
-piiList.appendChild(div);
-
-});
-
-});
+  });
 
 }
 
@@ -175,9 +168,21 @@ piiList.appendChild(div);
 
 downloadBtn.addEventListener("click", () => {
 
-  if(!downloadPath) return;
+  if(!downloadPath){
+    alert("No file available for download");
+    return;
+  }
 
-  window.location.href = window.location.origin + downloadPath;
+  const link = document.createElement("a");
 
-});
- 
+  link.href = window.location.origin + downloadPath;
+
+  link.download = downloadPath.split("/").pop();
+
+  document.body.appendChild(link);
+
+  link.click();
+
+  document.body.removeChild(link);
+
+}); 
