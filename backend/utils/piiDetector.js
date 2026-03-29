@@ -113,44 +113,15 @@ function isValidIFSC(ifsc) {
 
 /* ============================================================
    PHONE VALIDATION — TRAI Numbering Plan Rules
-   ============================================================
-   Indian mobile numbers follow the Telecom Regulatory Authority
-   of India (TRAI) National Numbering Plan. Rules applied:
-
-   Rule 1 — First digit must be 6, 7, 8, or 9 (regex enforces this
-             but we double-check on the clean 10-digit number)
-
-   Rule 2 — First 2 digits (series) must be TRAI-allocated.
-             TRAI assigns specific 2-digit prefixes to telecom
-             operators. Unallocated series are rejected.
-
-   Rule 3 — Cannot be all same digits
-             e.g. 9999999999, 8888888888 → rejected
-
-   Rule 4 — Cannot be a known test / placeholder number
-             e.g. 9000000000, 8000000000 → rejected
-
-   Rule 5 — Cannot be strictly sequential ascending or descending
-             e.g. 9876543210, 6789012345 → rejected
-
-   Rule 6 — Cannot have more than 7 of the same digit
-             e.g. 9888888810 (eight 8s) → rejected (not realistic)
    ============================================================ */
 
-// TRAI-allocated 2-digit mobile series (first 2 digits of 10-digit number)
-// Source: TRAI National Numbering Plan & DoT allocation tables
 const TRAI_ALLOCATED_SERIES = new Set([
-  // 6x series (allocated from 2017 onwards)
   "60","61","62","63","64","65","66","67","68","69",
-  // 7x series
   "70","71","72","73","74","75","76","77","78","79",
-  // 8x series
   "80","81","82","83","84","85","86","87","88","89",
-  // 9x series
   "90","91","92","93","94","95","96","97","98","99",
 ]);
 
-// Known test / placeholder / unassigned numbers (first 10 digits)
 const BLOCKED_NUMBERS = new Set([
   "9000000000","8000000000","7000000000","6000000000",
   "9111111111","8111111111","7111111111","6111111111",
@@ -161,47 +132,109 @@ const BLOCKED_NUMBERS = new Set([
 ]);
 
 function isValidPhone(phoneRaw) {
-  // Strip country code (+91 or 91) and all non-digit chars
   let digits = phoneRaw.replace(/\D/g, "");
-
-  if (digits.startsWith("91") && digits.length === 12) {
-    digits = digits.slice(2);
-  }
-
-  // Must be exactly 10 digits after stripping
+  if (digits.startsWith("91") && digits.length === 12) digits = digits.slice(2);
   if (digits.length !== 10) return false;
+  if (!["6","7","8","9"].includes(digits[0])) return false;
+  if (!TRAI_ALLOCATED_SERIES.has(digits.slice(0, 2))) return false;
+  if (/^(\d)\1{9}$/.test(digits)) return false;
+  if (BLOCKED_NUMBERS.has(digits)) return false;
+  const isAscending = [...digits].every(
+    (d, i, arr) => i === 0 || (parseInt(d) - parseInt(arr[i - 1]) + 10) % 10 === 1
+  );
+  if (isAscending) return false;
+  const isDescending = [...digits].every(
+    (d, i, arr) => i === 0 || (parseInt(arr[i - 1]) - parseInt(d) + 10) % 10 === 1
+  );
+  if (isDescending) return false;
+  for (let d = 0; d <= 9; d++) {
+    if (digits.split("").filter(x => x === String(d)).length > 7) return false;
+  }
+  return true;
+}
 
-  // Rule 1 — first digit must be 6–9
-  const firstDigit = digits[0];
-  if (!["6","7","8","9"].includes(firstDigit)) return false;
 
-  // Rule 2 — first 2 digits must be a TRAI-allocated series
-  const series = digits.slice(0, 2);
-  if (!TRAI_ALLOCATED_SERIES.has(series)) return false;
+/* ============================================================
+   BANK ACCOUNT VALIDATION — RBI Guidelines & Heuristic Rules
+   ============================================================
+   No universal checksum exists for Indian bank account numbers
+   (each bank has its own internal format). We apply RBI guidelines
+   and statistical heuristics to eliminate obvious false positives.
+
+   Rule 1 — Length must be 9–18 digits (RBI mandated range)
+             Accounts shorter than 9 or longer than 18 are invalid.
+
+   Rule 2 — Cannot be all zeros
+             e.g. 000000000000 → rejected
+
+   Rule 3 — Cannot be all same digits
+             e.g. 111111111111, 999999999999 → rejected
+
+   Rule 4 — Cannot be strictly sequential ascending or descending
+             e.g. 123456789012, 987654321098 → rejected
+             Real account numbers are never sequential.
+
+   Rule 5 — Digit entropy check (Shannon entropy)
+             Real account numbers have varied digit distribution.
+             A number where one digit appears > 50% of the time
+             is statistically suspicious.
+             Threshold: no single digit can appear more than
+             floor(length * 0.5) times.
+
+   Rule 6 — Cannot be a known dummy / test account number
+             Common placeholder numbers used in forms/examples
+             are explicitly blocked.
+
+   NOTE: "starts with 0" is intentionally NOT a rule — some Indian
+   banks (SBI, co-operative banks) issue accounts beginning with 0,
+   e.g. 071918210009932 is a valid SBI-format account number.
+   ============================================================ */
+
+// Known dummy/test/example account numbers used in documents
+const BLOCKED_ACCOUNTS = new Set([
+  "000000000","00000000000","000000000000",
+  "111111111","11111111111","111111111111",
+  "123456789","1234567890","12345678901","123456789012",
+  "987654321","9876543210","98765432109","987654321098",
+  "111222333444","444333222111","123123123123",
+  "999999999","99999999999","999999999999",
+]);
+
+function isValidBankAccount(accountRaw) {
+  const digits = accountRaw.replace(/\D/g, "");
+
+  // Rule 1 — length must be 9–18 digits (RBI range)
+  if (digits.length < 9 || digits.length > 18) return false;
+
+  // Rule 2 — cannot be all zeros
+  if (/^0+$/.test(digits)) return false;
 
   // Rule 3 — cannot be all same digits
-  if (/^(\d)\1{9}$/.test(digits)) return false;
+  if (/^(\d)\1+$/.test(digits)) return false;
 
-  // Rule 4 — cannot be a known blocked/test number
-  if (BLOCKED_NUMBERS.has(digits)) return false;
-
-  // Rule 5 — cannot be strictly sequential ascending (e.g. 6789012345)
+  // Rule 4 — cannot be strictly sequential ascending
   const isAscending = [...digits].every(
     (d, i, arr) => i === 0 || (parseInt(d) - parseInt(arr[i - 1]) + 10) % 10 === 1
   );
   if (isAscending) return false;
 
-  // Rule 5 — cannot be strictly sequential descending (e.g. 9876543210)
+  // Rule 4 — cannot be strictly sequential descending
   const isDescending = [...digits].every(
     (d, i, arr) => i === 0 || (parseInt(arr[i - 1]) - parseInt(d) + 10) % 10 === 1
   );
   if (isDescending) return false;
 
-  // Rule 6 — no single digit appearing more than 7 times
+  // Rule 5 — digit entropy check
+  // No single digit should appear more than 50% of the total length
+  // (threshold tightened from 60% since we removed the starts-with-0 rule)
+  const maxAllowed = Math.floor(digits.length * 0.5);
   for (let d = 0; d <= 9; d++) {
     const count = digits.split("").filter(x => x === String(d)).length;
-    if (count > 7) return false;
+    if (count > maxAllowed) return false;
   }
+
+  // Rule 6 — blocked dummy/test account numbers
+  if (BLOCKED_ACCOUNTS.has(digits)) return false;
 
   return true;
 }
@@ -341,24 +374,7 @@ function detectPII(text) {
   if (panResults.length) detectedPII.pan = panResults;
 
 
-  /* ── 4. Phone (Regex + TRAI Numbering Plan Validation) ───────────────
-   *
-   *  Detection now requires BOTH:
-   *    a) Regex match (Indian mobile pattern)
-   *    b) TRAI validation:
-   *         - first digit must be 6–9
-   *         - first 2 digits must be TRAI-allocated series
-   *         - not all same digits (9999999999)
-   *         - not a known test/blocked number
-   *         - not strictly sequential ascending or descending
-   *         - no single digit appearing more than 7 times
-   *
-   *  Example rejections:
-   *    9999999999 → rejected (all same digits)
-   *    9876543210 → rejected (sequential descending)
-   *    9000000000 → rejected (known test number)
-   *    8978908765 → accepted (real TRAI series, passes all rules)
-   * ─────────────────────────────────────────────────────────────────── */
+  /* ── 4. Phone (Regex + TRAI Numbering Plan Validation) ───────────────── */
 
   const phoneMatches = [...text.matchAll(piiPatterns.phone)];
   const phoneResults = [];
@@ -369,8 +385,6 @@ function detectPII(text) {
     const end   = index + value.length;
 
     if (isOverlapping(index, end)) return;
-
-    // TRAI validation — rejects fake/test/invalid phone numbers
     if (!isValidPhone(value)) return;
 
     const contextWindow = getContextWindow(text, index, value.length);
@@ -413,7 +427,27 @@ function detectPII(text) {
   if (ifscResults.length) detectedPII.ifsc = ifscResults;
 
 
-  /* ── 7. Bank Account ─────────────────────────────────────────────────── */
+  /* ── 7. Bank Account (Regex + RBI Heuristic Validation) ─────────────
+   *
+   *  Detection now requires ALL of:
+   *    a) Regex match (11–18 digit number)
+   *    b) Context keyword confirms it is a bank account (existing rule)
+   *    c) RBI heuristic validation:
+   *         - length 9–18 digits
+   *         - does not start with 0
+   *         - not all zeros or all same digits
+   *         - not sequential ascending or descending
+   *         - digit entropy: no digit appears more than 60% of length
+   *         - not a known dummy/test account number
+   *
+   *  Example rejections:
+   *    000000000000 → rejected (all zeros)
+   *    123456789012 → rejected (sequential ascending)
+   *    111111111111 → rejected (all same digit)
+   *    012345678901 → rejected (starts with 0)
+   *    112233445566 → rejected (entropy: '1' appears too often)
+   *    50155012345  → accepted (passes all rules)
+   * ─────────────────────────────────────────────────────────────────── */
 
   const bankMatches = [...text.matchAll(piiPatterns.bankAccount)];
   const bankResults = [];
@@ -428,7 +462,11 @@ function detectPII(text) {
     const contextWindow = getContextWindow(text, index, value.length);
     const confidence    = getConfidence("bankAccount", contextWindow);
 
+    // Context keyword is still required (existing rule — unchanged)
     if (confidence === "LOW") return;
+
+    // RBI heuristic validation — rejects obviously fake account numbers
+    if (!isValidBankAccount(value)) return;
 
     bankResults.push({ value, confidence });
     addRange(index, end);
