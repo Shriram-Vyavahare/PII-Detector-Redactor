@@ -4,6 +4,10 @@
   "description": "This project detects and masks Personally Identifiable Information (PII)\r such as Aadhaar, PAN, phone number, etc., from uploaded documents.",
   "main": "index.js",
   "scripts": {
+    "dev": "node scripts/dev.js",
+    "start:backend": "node backend/server.js",
+    "start:frontend": "npm --prefix frontend-react start",
+    "build:frontend": "npm --prefix frontend-react run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
