@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import "./App.css";
 
 const PII_LABELS = {
@@ -21,6 +21,27 @@ const PII_ICONS = {
   paymentCardNumber: "💳",
 };
 
+const THEME_STORAGE_KEY = "pii_detector_theme";
+
+function getInitialTheme() {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+
+  try {
+    const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (savedTheme === "dark" || savedTheme === "light") {
+      return savedTheme;
+    }
+  } catch (_) {}
+
+  if (window.matchMedia?.("(prefers-color-scheme: light)")?.matches) {
+    return "light";
+  }
+
+  return "dark";
+}
+
 export default function App() {
   const [selectedFile, setSelectedFile]   = useState(null);
   const [dragging, setDragging]           = useState(false);
@@ -29,8 +50,22 @@ export default function App() {
   const [downloadPath, setDownloadPath]   = useState("");
   const [reportPath, setReportPath]       = useState("");
   const [error, setError]                 = useState("");
+  const [theme, setTheme]                 = useState(getInitialTheme);
 
   const getFilename = (filePath) => filePath.split("/").pop() || "download.pdf";
+
+  useEffect(() => {
+    document.body.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch (_) {}
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((currentTheme) => currentTheme === "dark" ? "light" : "dark");
+  };
 
   /* ── File selection ──────────────────────────────────────────────── */
 
@@ -142,6 +177,25 @@ export default function App() {
       <div className="bg-orb orb2" />
 
       <div className="card">
+        <div className="card-topbar">
+          <button
+            type="button"
+            className={`theme-toggle ${theme === "light" ? "light" : ""}`}
+            onClick={toggleTheme}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            <span className="theme-toggle-track" aria-hidden="true">
+              <span className="theme-toggle-thumb" />
+            </span>
+            <span className="theme-toggle-copy">
+              <span className="theme-toggle-label">Theme</span>
+              <span className="theme-toggle-value">
+                {theme === "dark" ? "Dark" : "Light"}
+              </span>
+            </span>
+          </button>
+        </div>
 
         {/* ── Header ── */}
         <header className="header">
