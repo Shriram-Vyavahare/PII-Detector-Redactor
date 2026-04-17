@@ -26,7 +26,8 @@ const piiPatterns = {
   paymentCardNumber: /\b(?:\d{4}[- ]?){3}\d{4}\b/g,
 
   // Bank account: 11–18 digits (avoid 10-digit phone numbers)
-  bankAccount: /\b\d{11,18}\b/g
+  // Excludes 16-digit numbers (payment cards) to prevent overlap
+  bankAccount: /\b(?!\d{16}\b)\d{11,18}\b/g
 };
 
 module.exports = piiPatterns; 

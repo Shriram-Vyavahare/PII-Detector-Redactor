@@ -41,6 +41,7 @@ LIGHT_GREY = HexColor("#F5F5F5")
 MID_GREY   = HexColor("#CCCCCC")
 TEXT_DARK  = HexColor("#222222")
 HIGH_GREEN = HexColor("#27AE60")
+MEDIUM_ORANGE = HexColor("#FFA500")
 LOW_ORANGE = HexColor("#E67E22")
 
 
@@ -113,6 +114,10 @@ def build_stats_pdf(pii_map, original_filename, output_path):
         fontSize=9, fontName="Helvetica-Bold",
         textColor=HIGH_GREEN, alignment=TA_CENTER)
 
+    conf_medium_style = ParagraphStyle("conf_medium",
+        fontSize=9, fontName="Helvetica-Bold",
+        textColor=MEDIUM_ORANGE, alignment=TA_CENTER)
+
     conf_low_style = ParagraphStyle("conf_low",
         fontSize=9, fontName="Helvetica-Bold",
         textColor=LOW_ORANGE, alignment=TA_CENTER)
@@ -162,6 +167,31 @@ def build_stats_pdf(pii_map, original_filename, output_path):
     story.append(meta_table)
     story.append(Spacer(1, 12))
 
+    # ── Scoring Legend ──
+    legend_style = ParagraphStyle("legend",
+        fontSize=9, fontName="Helvetica",
+        textColor=TEXT_DARK, leading=14, alignment=TA_LEFT)
+    
+    legend_text = """
+<b>ℹ️ Confidence Score Calculation (3-Tier System):</b><br/>
+• <b>HIGH (100%)</b>: All 3 layers validated — Regex Pattern + Algorithmic Validation + Context Keywords<br/>
+• <b>MEDIUM (70%)</b>: 2 layers validated — Regex Pattern + Algorithmic Validation (no context)<br/>
+• <b>LOW (30%)</b>: 1 layer validated — Regex Pattern only (no algorithm, no context)
+"""
+    
+    legend_para = Paragraph(legend_text, legend_style)
+    legend_table = Table([[legend_para]], colWidths=[W])
+    legend_table.setStyle(TableStyle([
+        ("BACKGROUND",    (0,0), (-1,-1), HexColor("#E8F4F8")),
+        ("TOPPADDING",    (0,0), (-1,-1), 8),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 8),
+        ("LEFTPADDING",   (0,0), (-1,-1), 10),
+        ("RIGHTPADDING",  (0,0), (-1,-1), 10),
+        ("BOX",           (0,0), (-1,-1), 0.5, ACCENT),
+    ]))
+    story.append(legend_table)
+    story.append(Spacer(1, 12))
+
     # ── Summary cards — FIX 1 ──────────────────────────────────────────────
     # Each card is a mini 2-row Table: row 0 = big number, row 1 = label.
     # All 4 cards are then placed side-by-side in one outer Table row.
@@ -169,11 +199,20 @@ def build_stats_pdf(pii_map, original_filename, output_path):
 
     total_entities = sum(len(v) for v in pii_map.values())
     total_types    = len(pii_map)
-    high_count     = sum(
+    
+    # 3-tier confidence system: HIGH (100%), MEDIUM (70%), LOW (30%)
+    high_count = sum(
         1 for items in pii_map.values() for item in items
-        if item.get("confidence") == "HIGH"
+        if item.get("confidence", 0) == 100
     )
-    low_count = total_entities - high_count
+    medium_count = sum(
+        1 for items in pii_map.values() for item in items
+        if item.get("confidence", 0) == 70
+    )
+    low_count = sum(
+        1 for items in pii_map.values() for item in items
+        if item.get("confidence", 0) == 30
+    )
 
     def make_card(value_str, label_str, value_color):
         num_para = ParagraphStyle(
@@ -186,7 +225,7 @@ def build_stats_pdf(pii_map, original_filename, output_path):
                 [Paragraph(value_str, num_para)],
                 [Paragraph(label_str, card_lbl_style)],
             ],
-            colWidths=[W/4 - 4*mm],
+            colWidths=[W/5 - 4*mm],
         )
         inner.setStyle(TableStyle([
             ("TOPPADDING",    (0,0), (-1,-1), 10),
@@ -202,10 +241,11 @@ def build_stats_pdf(pii_map, original_filename, output_path):
         make_card(str(total_entities), "Total PII Entities", "#4F86C6"),
         make_card(str(total_types),    "PII Types Found",    "#4F86C6"),
         make_card(str(high_count),     "High Confidence",    "#27AE60"),
+        make_card(str(medium_count),   "Medium Confidence",  "#FFA500"),
         make_card(str(low_count),      "Low Confidence",     "#E67E22"),
     ]]
 
-    cards_outer = Table(cards_row, colWidths=[W/4]*4)
+    cards_outer = Table(cards_row, colWidths=[W/5]*5)
     cards_outer.setStyle(TableStyle([
         ("BACKGROUND",    (0,0), (-1,-1), LIGHT_GREY),
         ("BOX",           (0,0), (-1,-1), 0.5, MID_GREY),
@@ -242,9 +282,21 @@ def build_stats_pdf(pii_map, original_filename, output_path):
     for pii_type, items in pii_map.items():
         label = PII_LABELS.get(pii_type, pii_type.upper())
         for i, item in enumerate(items):
-            conf      = item.get("confidence", "LOW")
-            conf_para = Paragraph(conf,
-                conf_high_style if conf == "HIGH" else conf_low_style)
+            # Handle numeric confidence scores
+            try:
+                conf = int(item.get("confidence", 0))
+            except (ValueError, TypeError):
+                conf = 0
+            
+            conf_str = f"{conf}%"
+            
+            # 3-tier confidence styling: HIGH (100%), MEDIUM (70%), LOW (30%)
+            if conf == 100:
+                conf_para = Paragraph(conf_str, conf_high_style)
+            elif conf == 70:
+                conf_para = Paragraph(conf_str, conf_medium_style)
+            else:
+                conf_para = Paragraph(conf_str, conf_low_style)
             type_para  = Paragraph(label if i == 0 else "", cell_style)
             count_para = Paragraph(str(len(items)) if i == 0 else "", cell_style)
 

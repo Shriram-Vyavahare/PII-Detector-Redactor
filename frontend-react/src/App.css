@@ -554,6 +554,10 @@ body {
   color: var(--green);
 }
 
+.medium-chip .stat-num {
+  color: #FFA500;
+}
+
 .low-chip .stat-num {
   color: var(--orange);
 }
@@ -646,6 +650,12 @@ body {
   background: var(--confidence-high-bg);
   color: var(--green);
   border: 1px solid var(--confidence-high-border);
+}
+
+.confidence-badge.medium {
+  background: rgba(255, 165, 0, 0.1);
+  color: #FFA500;
+  border: 1px solid rgba(255, 165, 0, 0.3);
 }
 
 .confidence-badge.low {

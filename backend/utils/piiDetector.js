@@ -157,18 +157,39 @@ function isValidPhone(phoneRaw) {
 /* ============================================================
    BANK ACCOUNT VALIDATION — RBI Guidelines & Heuristic Rules
    ============================================================
-   No universal checksum exists for Indian bank account numbers
-   (each bank has its own internal format). We apply RBI guidelines
-   and statistical heuristics to eliminate obvious false positives.
+   IMPORTANT: Bank account detection requires MANDATORY CONTEXT.
+   
+   Unlike other PII types (Aadhaar has Verhoeff checksum, PAN has
+   structural validation, Credit Cards have Luhn algorithm), Indian
+   bank account numbers have NO universal validation algorithm.
+   Each bank uses its own internal format.
+   
+   Without context keywords, any random 12-digit number would be
+   detected as a bank account, causing excessive false positives.
+   
+   Therefore, bank accounts are ONLY detected when context keywords
+   like "account", "bank account", "a/c" are present nearby.
+
+   The following heuristic rules are applied to eliminate obvious
+   false positives when context IS present:
 
    Rule 1 — Length must be 9–18 digits (RBI mandated range)
              Accounts shorter than 9 or longer than 18 are invalid.
+
+   Rule 1.5 — Cannot be exactly 16 digits (payment card overlap)
+             16-digit numbers are payment cards, not bank accounts.
+             This prevents credit cards from being detected as bank accounts.
 
    Rule 2 — Cannot be all zeros
              e.g. 000000000000 → rejected
 
    Rule 3 — Cannot be all same digits
              e.g. 111111111111, 999999999999 → rejected
+
+   Rule 3.5 — Cannot contain excessive repeating patterns (4+ consecutive same digits)
+             e.g. 444411115555 (has 4444, 1111, 5555) → rejected
+             e.g. 071918320007777 (has 7777) → rejected
+             Real account numbers may have 000 or 111, but not 0000 or 1111.
 
    Rule 4 — Cannot be strictly sequential ascending or descending
              e.g. 123456789012, 987654321098 → rejected
@@ -206,11 +227,20 @@ function isValidBankAccount(accountRaw) {
   // Rule 1 — length must be 9–18 digits (RBI range)
   if (digits.length < 9 || digits.length > 18) return false;
 
+  // Rule 1.5 — cannot be exactly 16 digits (payment card overlap prevention)
+  // 16-digit numbers should be detected as payment cards, not bank accounts
+  if (digits.length === 16) return false;
+
   // Rule 2 — cannot be all zeros
   if (/^0+$/.test(digits)) return false;
 
   // Rule 3 — cannot be all same digits
   if (/^(\d)\1+$/.test(digits)) return false;
+
+  // Rule 3.5 — cannot contain excessive repeating patterns
+  // Blocks numbers with 4+ consecutive same digits (e.g., 4444, 5555, 0000)
+  // Real accounts may have 000 or 111, but not 0000 or 1111
+  if (/(\d)\1{3,}/.test(digits)) return false;
 
   // Rule 4 — cannot be strictly sequential ascending
   const isAscending = [...digits].every(
@@ -237,6 +267,33 @@ function isValidBankAccount(accountRaw) {
   if (BLOCKED_ACCOUNTS.has(digits)) return false;
 
   return true;
+}
+
+
+/* ============================================================
+   CONFIDENCE SCORE CALCULATION — 3-Layer Scoring System
+   ============================================================
+   Calculates numeric confidence scores (0-100%) based on:
+   - Layer 1: Regex Pattern Match (30%)
+   - Layer 2: Algorithmic Validation (40%)
+   - Layer 3: Context Keywords (30%)
+   ============================================================ */
+
+function calculateConfidence(type, hasAlgorithmValidation, hasContextKeywords) {
+  // Special case: Email always returns 100%
+  if (type === "email") return 100;
+  
+  // Base score: regex match
+  let score = 30;
+  
+  // Add validation layer
+  if (hasAlgorithmValidation) score += 40;
+  
+  // Add context layer
+  if (hasContextKeywords) score += 30;
+  
+  // Clamp to valid range [0, 100]
+  return Math.max(0, Math.min(100, score));
 }
 
 
@@ -271,7 +328,7 @@ function detectPII(text) {
       "ifsc","ifsc code","bank ifsc","rtgs","neft","imps"
     ],
     bankAccount: [
-      "account","account number","bank account","a/c","account details"
+      "account","account number","bank account","a/c","a c","account details"
     ],
   };
 
@@ -283,15 +340,13 @@ function detectPII(text) {
   }
 
 
-  function getConfidence(type, contextWindow) {
-    if (type === "email") return "HIGH";
+  function hasContextKeywords(type, contextWindow) {
     const keywords         = contextKeywords[type] || [];
     const normalizedWindow = contextWindow
       .replace(/[^\w\s]/g, " ")
       .replace(/\s+/g, " ")
       .toLowerCase();
-    const hasContext = keywords.some(kw => normalizedWindow.includes(kw.toLowerCase()));
-    return hasContext ? "HIGH" : "LOW";
+    return keywords.some(kw => normalizedWindow.includes(kw.toLowerCase()));
   }
 
 
@@ -315,11 +370,15 @@ function detectPII(text) {
     const index = match.index;
     const end   = index + value.length;
 
-    if (!isValidCardNumber(value)) return;
+    const hasAlgorithm = isValidCardNumber(value);
+    if (!hasAlgorithm) return;
     if (isOverlapping(index, end)) return;
 
     const contextWindow = getContextWindow(text, index, value.length);
-    validCards.push({ value, confidence: getConfidence("paymentCardNumber", contextWindow) });
+    const hasContext = hasContextKeywords("paymentCardNumber", contextWindow);
+    const confidence = calculateConfidence("paymentCardNumber", hasAlgorithm, hasContext);
+    
+    validCards.push({ value, confidence });
     addRange(index, end);
   });
 
@@ -343,10 +402,15 @@ function detectPII(text) {
     }
 
     if (isOverlapping(index, end)) return;
-    if (!isValidAadhaar(value)) return;
+    
+    const hasAlgorithm = isValidAadhaar(value);
+    if (!hasAlgorithm) return;
 
     const contextWindow = getContextWindow(text, index, value.length);
-    aadhaarResults.push({ value, confidence: getConfidence("aadhaar", contextWindow) });
+    const hasContext = hasContextKeywords("aadhaar", contextWindow);
+    const confidence = calculateConfidence("aadhaar", hasAlgorithm, hasContext);
+    
+    aadhaarResults.push({ value, confidence });
     addRange(index, end);
   });
 
@@ -364,10 +428,15 @@ function detectPII(text) {
     const end   = index + value.length;
 
     if (isOverlapping(index, end)) return;
-    if (!isValidPAN(value)) return;
+    
+    const hasAlgorithm = isValidPAN(value);
+    if (!hasAlgorithm) return;
 
     const contextWindow = getContextWindow(text, index, value.length);
-    panResults.push({ value, confidence: getConfidence("pan", contextWindow) });
+    const hasContext = hasContextKeywords("pan", contextWindow);
+    const confidence = calculateConfidence("pan", hasAlgorithm, hasContext);
+    
+    panResults.push({ value, confidence });
     addRange(index, end);
   });
 
@@ -385,10 +454,15 @@ function detectPII(text) {
     const end   = index + value.length;
 
     if (isOverlapping(index, end)) return;
-    if (!isValidPhone(value)) return;
+    
+    const hasAlgorithm = isValidPhone(value);
+    if (!hasAlgorithm) return;
 
     const contextWindow = getContextWindow(text, index, value.length);
-    phoneResults.push({ value, confidence: getConfidence("phone", contextWindow) });
+    const hasContext = hasContextKeywords("phone", contextWindow);
+    const confidence = calculateConfidence("phone", hasAlgorithm, hasContext);
+    
+    phoneResults.push({ value, confidence });
     addRange(index, end);
   });
 
@@ -401,7 +475,7 @@ function detectPII(text) {
   if (emailMatches.length) {
     detectedPII.email = emailMatches.map(match => ({
       value:      match[0],
-      confidence: "HIGH",
+      confidence: calculateConfidence("email", true, true),
     }));
   }
 
@@ -417,37 +491,52 @@ function detectPII(text) {
     const end   = index + value.length;
 
     if (isOverlapping(index, end)) return;
-    if (!isValidIFSC(value)) return;
+    
+    const hasAlgorithm = isValidIFSC(value);
+    if (!hasAlgorithm) return;
 
     const contextWindow = getContextWindow(text, index, value.length);
-    ifscResults.push({ value, confidence: getConfidence("ifsc", contextWindow) });
+    const hasContext = hasContextKeywords("ifsc", contextWindow);
+    const confidence = calculateConfidence("ifsc", hasAlgorithm, hasContext);
+    
+    ifscResults.push({ value, confidence });
     addRange(index, end);
   });
 
   if (ifscResults.length) detectedPII.ifsc = ifscResults;
 
 
-  /* ── 7. Bank Account (Regex + RBI Heuristic Validation) ─────────────
+  /* ── 7. Bank Account (Regex + RBI Heuristic Validation + MANDATORY CONTEXT) ──
    *
-   *  Detection now requires ALL of:
-   *    a) Regex match (11–18 digit number)
-   *    b) Context keyword confirms it is a bank account (existing rule)
-   *    c) RBI heuristic validation:
+   *  IMPORTANT: Bank account detection requires MANDATORY CONTEXT.
+   *  Unlike other PII types (Aadhaar, PAN, Credit Card), bank account numbers
+   *  have NO universal checksum or validation algorithm. Each bank uses its own
+   *  internal format, making algorithmic validation unreliable.
+   *
+   *  Detection requirements:
+   *    a) Regex match (11–18 digit number, excluding 16-digit credit cards)
+   *    b) RBI heuristic validation (basic sanity checks):
    *         - length 9–18 digits
-   *         - does not start with 0
    *         - not all zeros or all same digits
    *         - not sequential ascending or descending
-   *         - digit entropy: no digit appears more than 60% of length
+   *         - not excessive repeating patterns (4+ consecutive same digits)
+   *         - digit entropy: no digit appears more than 50% of length
    *         - not a known dummy/test account number
+   *    c) Context keywords (MANDATORY) - must have words like:
+   *         "account", "account number", "bank account", "a/c", "account details"
    *
-   *  Example rejections:
-   *    000000000000 → rejected (all zeros)
-   *    123456789012 → rejected (sequential ascending)
-   *    111111111111 → rejected (all same digit)
-   *    012345678901 → rejected (starts with 0)
-   *    112233445566 → rejected (entropy: '1' appears too often)
-   *    50155012345  → accepted (passes all rules)
-   * ─────────────────────────────────────────────────────────────────── */
+   *  Confidence scoring:
+   *    - With context: 100% (regex + RBI validation + context)
+   *    - Without context: NOT DETECTED (context is mandatory)
+   *
+   *  Example detections:
+   *    "50155012345" → NOT DETECTED (no context)
+   *    "Account number: 50155012345" → DETECTED at 100% (has context)
+   *    "Bank a/c: 071918210009932" → DETECTED at 100% (has context)
+   *
+   *  Rationale: Without context keywords, any random 12-digit number would be
+   *  detected as a bank account, leading to excessive false positives.
+   * ──────────────────────────────────────────────────────────────────────── */
 
   const bankMatches = [...text.matchAll(piiPatterns.bankAccount)];
   const bankResults = [];
@@ -459,15 +548,20 @@ function detectPII(text) {
 
     if (isOverlapping(index, end)) return;
 
+    // Check for context keywords FIRST (mandatory requirement)
     const contextWindow = getContextWindow(text, index, value.length);
-    const confidence    = getConfidence("bankAccount", contextWindow);
-
-    // Context keyword is still required (existing rule — unchanged)
-    if (confidence === "LOW") return;
+    const hasContext = hasContextKeywords("bankAccount", contextWindow);
+    
+    // If no context keywords found, skip this number entirely
+    if (!hasContext) return;
 
     // RBI heuristic validation — rejects obviously fake account numbers
-    if (!isValidBankAccount(value)) return;
-
+    const hasAlgorithm = isValidBankAccount(value);
+    if (!hasAlgorithm) return;
+    
+    // Context is present and validation passed → 100% confidence
+    const confidence = 100;
+    
     bankResults.push({ value, confidence });
     addRange(index, end);
   });

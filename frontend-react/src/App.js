@@ -162,8 +162,16 @@ export default function App() {
     : [];
 
   const totalCount = piiEntries.reduce((sum, [, items]) => sum + items.length, 0);
-  const highCount  = piiEntries.reduce(
-    (sum, [, items]) => sum + items.filter(i => i.confidence === "HIGH").length, 0
+  
+  // 3-tier confidence system: HIGH (100%), MEDIUM (70%), LOW (30%)
+  const highCount = piiEntries.reduce(
+    (sum, [, items]) => sum + items.filter(i => i.confidence === 100).length, 0
+  );
+  const mediumCount = piiEntries.reduce(
+    (sum, [, items]) => sum + items.filter(i => i.confidence === 70).length, 0
+  );
+  const lowCount = piiEntries.reduce(
+    (sum, [, items]) => sum + items.filter(i => i.confidence === 30).length, 0
   );
 
   /* ── Render ──────────────────────────────────────────────────────── */
@@ -290,8 +298,12 @@ export default function App() {
                     <span className="stat-num">{highCount}</span>
                     <span className="stat-lbl">High Confidence</span>
                   </div>
+                  <div className="stat-chip medium-chip">
+                    <span className="stat-num">{mediumCount}</span>
+                    <span className="stat-lbl">Medium Confidence</span>
+                  </div>
                   <div className="stat-chip low-chip">
-                    <span className="stat-num">{totalCount - highCount}</span>
+                    <span className="stat-num">{lowCount}</span>
                     <span className="stat-lbl">Low Confidence</span>
                   </div>
                 </div>
@@ -308,14 +320,22 @@ export default function App() {
                         <span className="group-count">{items.length}</span>
                       </div>
                       <div className="group-items">
-                        {items.map((item, idx) => (
-                          <div className="pii-item" key={idx}>
-                            <span className="pii-value">{item.value}</span>
-                            <span className={`confidence-badge ${item.confidence === "HIGH" ? "high" : "low"}`}>
-                              {item.confidence}
-                            </span>
-                          </div>
-                        ))}
+                        {items.map((item, idx) => {
+                          // Determine confidence tier: high (100%), medium (70%), low (30%)
+                          const confidenceTier = 
+                            item.confidence === 100 ? "high" :
+                            item.confidence === 70 ? "medium" :
+                            "low";
+                          
+                          return (
+                            <div className="pii-item" key={idx}>
+                              <span className="pii-value">{item.value}</span>
+                              <span className={`confidence-badge ${confidenceTier}`}>
+                                {item.confidence != null ? `${item.confidence}%` : 'N/A'}
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
