@@ -6,11 +6,16 @@ const path = require("path");
 
 const uploadRoutes = require("./routes/uploadRoutes");
 const chatRoutes = require("./routes/chatRoutes");
+const authRoutes = require("./routes/authRoutes");
+const { testConnection } = require("./config/database");
 
 const app = express();
 const port = 3000;
 const reactBuildPath = path.join(__dirname, "../frontend-react/build");
 const reactIndexPath = path.join(reactBuildPath, "index.html");
+
+/* Test database connection on startup */
+testConnection();
 
 /* Serve uploaded/redacted files */
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -18,6 +23,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 /* API routes */
 app.use("/api", uploadRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api", authRoutes);
 
 /* Serve React build when available */
 if (fs.existsSync(reactIndexPath)) {
@@ -35,4 +41,4 @@ if (fs.existsSync(reactIndexPath)) {
 /* Start server */
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
-}); 
+});

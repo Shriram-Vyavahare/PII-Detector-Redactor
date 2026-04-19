@@ -1,0 +1,7 @@
+/* Register Component Styles - Inherits from Login.css */
+@import './Login.css';
+
+/* Register-specific overrides */
+.auth-header .auth-icon {
+  /* Different icon styling for register if needed */
+}
