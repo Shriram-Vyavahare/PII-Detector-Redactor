@@ -1,0 +1,91 @@
+.chat-button {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: 0;
+}
+
+/* Dark theme (default) */
+.chat-button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.chat-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.chat-button:active {
+  transform: translateY(0);
+}
+
+/* Light theme */
+.chat-button.light {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+}
+
+.chat-button.light:hover {
+  box-shadow: 0 6px 20px rgba(79, 172, 254, 0.4);
+}
+
+/* Open state */
+.chat-button.open {
+  background: #ff6b6b;
+  transform: rotate(90deg);
+}
+
+.chat-button.open:hover {
+  background: #ff5252;
+  transform: rotate(90deg) translateY(-2px);
+}
+
+.chat-button.light.open {
+  background: #ff6b6b;
+}
+
+.chat-button.light.open:hover {
+  background: #ff5252;
+  box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+}
+
+/* Icon styling */
+.chat-button svg {
+  transition: all 0.3s ease;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .chat-button {
+    bottom: 20px;
+    right: 20px;
+    width: 52px;
+    height: 52px;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-button {
+    bottom: 16px;
+    right: 16px;
+    width: 48px;
+    height: 48px;
+  }
+  
+  .chat-button svg {
+    width: 20px;
+    height: 20px;
+  }
+}

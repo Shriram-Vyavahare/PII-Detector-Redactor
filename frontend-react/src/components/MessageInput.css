@@ -1,0 +1,139 @@
+.message-input-container {
+  border-top: 1px solid #333;
+  padding: 16px;
+  background: #1a1a1a;
+}
+
+.message-input-container.light {
+  border-top: 1px solid #e0e0e0;
+  background: #ffffff;
+}
+
+.message-input-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-wrapper {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.message-textarea {
+  flex: 1;
+  min-height: 40px;
+  max-height: 120px;
+  padding: 12px 16px;
+  border: 1px solid #333;
+  border-radius: 20px;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s ease;
+  line-height: 1.4;
+}
+
+.message-input-container.light .message-textarea {
+  border: 1px solid #e0e0e0;
+  background: #f8f9fa;
+  color: #333;
+}
+
+.message-textarea:focus {
+  border-color: #667eea;
+}
+
+.message-input-container.light .message-textarea:focus {
+  border-color: #4facfe;
+}
+
+.message-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.message-textarea::placeholder {
+  color: #888;
+  font-size: 13px;
+}
+
+.message-input-container.light .message-textarea::placeholder {
+  color: #999;
+}
+
+.send-button {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.message-input-container.light .send-button {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.send-button:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.message-input-container.light .send-button:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(79, 172, 254, 0.3);
+}
+
+.send-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.send-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.loading-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.character-count {
+  font-size: 12px;
+  text-align: right;
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+.character-count .warning {
+  color: #ff6b6b;
+  font-weight: 500;
+}
+
+/* Responsive design */
+@media (max-width: 480px) {
+  .message-input-container {
+    padding: 12px;
+  }
+  
+  .message-textarea {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
+  .send-button {
+    width: 36px;
+    height: 36px;
+  }
+}

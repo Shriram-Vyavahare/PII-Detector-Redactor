@@ -1,8 +1,11 @@
+require('dotenv').config();
+
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
 
 const uploadRoutes = require("./routes/uploadRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 
 const app = express();
 const port = 3000;
@@ -14,6 +17,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* API routes */
 app.use("/api", uploadRoutes);
+app.use("/api/chat", chatRoutes);
 
 /* Serve React build when available */
 if (fs.existsSync(reactIndexPath)) {

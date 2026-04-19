@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import "./App.css";
+import ChatButton from "./components/ChatButton";
+import ChatInterface from "./components/ChatInterface";
 
 const PII_LABELS = {
   aadhaar:           "Aadhaar Number",
@@ -51,6 +53,7 @@ export default function App() {
   const [reportPath, setReportPath]       = useState("");
   const [error, setError]                 = useState("");
   const [theme, setTheme]                 = useState(getInitialTheme);
+  const [isChatOpen, setIsChatOpen]       = useState(false);
 
   const getFilename = (filePath) => filePath.split("/").pop() || "download.pdf";
 
@@ -65,6 +68,10 @@ export default function App() {
 
   const toggleTheme = () => {
     setTheme((currentTheme) => currentTheme === "dark" ? "light" : "dark");
+  };
+
+  const toggleChat = () => {
+    setIsChatOpen(!isChatOpen);
   };
 
   /* ── File selection ──────────────────────────────────────────────── */
@@ -364,6 +371,18 @@ export default function App() {
         )}
 
       </div>
+
+      {/* Chat Components */}
+      <ChatButton 
+        isOpen={isChatOpen} 
+        onClick={toggleChat} 
+        theme={theme} 
+      />
+      <ChatInterface 
+        isOpen={isChatOpen} 
+        theme={theme} 
+        onClose={() => setIsChatOpen(false)} 
+      />
     </div>
   );
 }
