@@ -214,28 +214,20 @@ export default function Dashboard() {
           <div className="topbar-actions">
             <button
               type="button"
-              className={`theme-toggle ${theme === "light" ? "light" : ""}`}
+              className="icon-btn theme-btn"
               onClick={toggleTheme}
               aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             >
-              <span className="theme-toggle-track" aria-hidden="true">
-                <span className="theme-toggle-thumb" />
-              </span>
-              <span className="theme-toggle-copy">
-                <span className="theme-toggle-label">Theme</span>
-                <span className="theme-toggle-value">
-                  {theme === "dark" ? "Dark" : "Light"}
-                </span>
-              </span>
+              {theme === "dark" ? "🌙" : "☀️"}
             </button>
             <button
               type="button"
-              className="logout-btn"
+              className="icon-btn logout-btn"
               onClick={handleLogout}
               title="Logout"
             >
-              🚪 Logout
+              ⏻
             </button>
           </div>
         </div>

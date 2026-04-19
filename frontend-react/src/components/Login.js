@@ -55,6 +55,10 @@ const Login = () => {
 
   return (
     <div className="auth-container">
+      {/* Background decoration matching dashboard */}
+      <div className="auth-orb orb1" />
+      <div className="auth-orb orb2" />
+      
       <div className="auth-card">
         <div className="auth-header">
           <div className="auth-icon">🔐</div>
